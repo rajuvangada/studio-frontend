@@ -319,13 +319,27 @@ export const api = {
 
   // Client Gallery Proofing (Public Client Portal)
   getGalleryInfo: (token: string) =>
-    apiFetch<{ ok: boolean; name: string; eventName?: string; galleryPublished: boolean }>(
-      `/api/gallery/${token}/info`,
+    apiFetch<{ ok: boolean; published: boolean; name: string; eventName?: string; galleryPublished: boolean }>(
+      `/api/gallery/${token}`,
+    ),
+
+  verifyGalleryPasscode: (token: string, passcode: string) =>
+    apiFetch<{ ok: boolean; client?: ClientItem; photos?: MediaItem[]; submittedAt?: string | null }>(
+      `/api/gallery/${token}/verify-passcode`,
+      {
+        method: "POST",
+        body: JSON.stringify({ passcode }),
+      },
+    ),
+
+  getGalleryMedia: (token: string, passcode: string) =>
+    apiFetch<{ ok: boolean; photos: MediaItem[] }>(
+      `/api/gallery/${token}/media?passcode=${encodeURIComponent(passcode)}`,
     ),
 
   openGallery: (token: string, passcode?: string) =>
     apiFetch<{ client?: ClientItem; photos?: MediaItem[]; submittedAt?: string | null }>(
-      `/api/gallery/${token}/open`,
+      `/api/gallery/${token}/verify-passcode`,
       {
         method: "POST",
         body: JSON.stringify({ passcode }),

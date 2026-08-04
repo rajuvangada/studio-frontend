@@ -1,19 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronLeft, ChevronRight, Heart, Lock, Video, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
-import {
-  openGallery,
-  submitSelection,
-  toggleSelection,
-  type GalleryData,
-} from "@/lib/gallery.functions";
+import { api, type ClientItem, type MediaItem } from "@/lib/api";
+import { type GalleryData } from "@/lib/gallery.functions";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/studio";
 
@@ -41,11 +35,7 @@ function GalleryPage() {
   const [notes, setNotes] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const open = useServerFn(openGallery);
-  const toggle = useServerFn(toggleSelection);
-  const submit = useServerFn(submitSelection);
-
-  // Validate gallery token and publication status
+  // Validate gallery token and publication status via Express API
   const { data: infoData, error: infoError, isLoading: infoLoading } = useQuery({
     queryKey: ["gallery-info", token],
     queryFn: async () => {
@@ -59,13 +49,32 @@ function GalleryPage() {
   });
 
   const unlock = useMutation({
-    mutationFn: () => open({ data: { token, passcode } }),
-    onSuccess: (result) => {
-      if (result.ok) {
+    mutationFn: async () => {
+      return await api.verifyGalleryPasscode(token, passcode);
+    },
+    onSuccess: (res) => {
+      if (res && res.client) {
         setLockMessage(null);
-        setUnlocked(result.gallery);
+        setUnlocked({
+          client: {
+            id: (res.client as any).id || (res.client as any)._id || "",
+            name: res.client.name,
+            event_name: res.client.eventName || (res.client as any).event_name || null,
+            event_date: res.client.eventDate || (res.client as any).event_date || null,
+            location: res.client.location || null,
+          },
+          photos: ((res.photos || []) as any[]).map((p: any) => ({
+            id: p.id || p._id,
+            kind: p.kind || "photo",
+            file_name: p.fileName || p.file_name || "media.jpg",
+            url: p.url,
+            selected: !!p.selected,
+            comment: p.comment || null,
+          })),
+          submitted_at: res.submittedAt || null,
+        });
       } else {
-        setLockMessage(result.message || "Incorrect passcode.");
+        setLockMessage("Incorrect passcode.");
       }
     },
     onError: (e: Error) => setLockMessage(e.message || "Incorrect passcode."),
@@ -73,7 +82,7 @@ function GalleryPage() {
 
   const toggleMutation = useMutation({
     mutationFn: (vars: { mediaId: string; selected: boolean }) =>
-      toggle({ data: { token, passcode, ...vars } }),
+      api.selectGalleryMedia(token, { passcode, ...vars }),
     onMutate: (vars) =>
       setUnlocked((prev) =>
         prev
@@ -89,7 +98,7 @@ function GalleryPage() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: () => submit({ data: { token, passcode, notes } }),
+    mutationFn: () => api.submitGallerySelection(token, { passcode, notes }),
     onSuccess: (res) => {
       toast.success(`Submitted ${res.count} photos to the studio.`);
       setUnlocked((prev) => (prev ? { ...prev, submitted_at: new Date().toISOString() } : prev));

@@ -158,7 +158,7 @@ function ContactPage() {
                 {profile?.phone && (
                   <li className="flex items-center gap-3">
                     <Phone className="size-4 shrink-0 text-brand" />
-                    <a href={`tel:${profile.phone}`} className="min-w-0 truncate hover:text-brand">
+                    <a href={`tel:${profile.phone.replace(/[^\d+]/g, "") || profile.phone}`} className="min-w-0 truncate hover:text-brand">
                       {profile.phone}
                     </a>
                   </li>
@@ -181,26 +181,30 @@ function ContactPage() {
                       href={
                         profile.instagram.startsWith("http")
                           ? profile.instagram
-                          : `https://instagram.com/${profile.instagram.replace("@", "")}`
+                          : `https://instagram.com/${profile.instagram.replace(/^@/, "")}`
                       }
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="hover:text-brand"
                     >
-                      @gk_digital_studios
+                      Instagram
                     </a>
                   </li>
                 )}
                 {profile?.address && (
-                  <li className="flex items-start gap-3">
-                    <MapPin className="mt-0.5 size-4 shrink-0 text-brand" />
+                  <li className="flex items-center gap-3">
+                    <MapPin className="size-4 shrink-0 text-brand" />
                     <a
-                      href={GOOGLE_MAPS_URL}
+                      href={
+                        profile.address.startsWith("http")
+                          ? profile.address
+                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.address)}`
+                      }
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="hover:text-brand"
                     >
-                      {profile.address} · View on Google Maps
+                      View on Google Maps
                     </a>
                   </li>
                 )}

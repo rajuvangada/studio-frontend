@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Award, BadgeCheck, Camera, Mail, MapPin, Phone, User } from "lucide-react";
+import { Award, BadgeCheck, Camera, Instagram, Mail, MapPin, Phone, User } from "lucide-react";
 
 import { Reveal } from "@/components/site/Reveal";
 import { PageHero, SiteLayout } from "@/components/site/SiteLayout";
@@ -77,22 +77,54 @@ function AboutPage() {
 
               {/* Dynamic Contact details */}
               <div className="mt-8 space-y-3 pt-6 border-t border-border">
-                {profile?.email && (
-                  <div className="flex items-center gap-3 text-xs text-foreground">
-                    <Mail className="size-4 text-brand shrink-0" />
-                    <span>{profile.email}</span>
-                  </div>
-                )}
                 {profile?.phone && (
                   <div className="flex items-center gap-3 text-xs text-foreground">
                     <Phone className="size-4 text-brand shrink-0" />
-                    <span>{profile.phone}</span>
+                    <a href={`tel:${profile.phone.replace(/[^\d+]/g, "") || profile.phone}`} className="hover:text-brand">
+                      {profile.phone}
+                    </a>
+                  </div>
+                )}
+                {profile?.email && (
+                  <div className="flex items-center gap-3 text-xs text-foreground">
+                    <Mail className="size-4 text-brand shrink-0" />
+                    <a href={`mailto:${profile.email}`} className="hover:text-brand">
+                      {profile.email}
+                    </a>
+                  </div>
+                )}
+                {profile?.instagram && (
+                  <div className="flex items-center gap-3 text-xs text-foreground">
+                    <Instagram className="size-4 text-brand shrink-0" />
+                    <a
+                      href={
+                        profile.instagram.startsWith("http")
+                          ? profile.instagram
+                          : `https://instagram.com/${profile.instagram.replace(/^@/, "")}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-brand"
+                    >
+                      Instagram
+                    </a>
                   </div>
                 )}
                 {profile?.address && (
                   <div className="flex items-center gap-3 text-xs text-foreground">
                     <MapPin className="size-4 text-brand shrink-0" />
-                    <span>{profile.address}</span>
+                    <a
+                      href={
+                        profile.address.startsWith("http")
+                          ? profile.address
+                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.address)}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-brand"
+                    >
+                      Location
+                    </a>
                   </div>
                 )}
               </div>

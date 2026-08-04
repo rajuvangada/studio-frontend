@@ -59,8 +59,8 @@ export function SiteFooter() {
               <li className="flex items-center gap-2.5">
                 <Phone className="size-4 shrink-0 text-brand" />
                 <a
-                  href={`tel:${profile.phone}`}
-                  className="min-w-0 truncate transition-colors hover:text-brand"
+                  href={`tel:${profile.phone.replace(/[^\d+]/g, "") || profile.phone}`}
+                  className="transition-colors hover:text-brand"
                 >
                   {profile.phone}
                 </a>
@@ -71,7 +71,7 @@ export function SiteFooter() {
                 <Mail className="size-4 shrink-0 text-brand" />
                 <a
                   href={`mailto:${profile.email}`}
-                  className="min-w-0 truncate transition-colors hover:text-brand"
+                  className="transition-colors hover:text-brand"
                 >
                   {profile.email}
                 </a>
@@ -87,14 +87,10 @@ export function SiteFooter() {
                       : `https://instagram.com/${profile.instagram.replace(/^@/, "")}`
                   }
                   target="_blank"
-                  rel="noreferrer"
-                  className="min-w-0 truncate transition-colors hover:text-brand"
+                  rel="noopener noreferrer"
+                  className="transition-colors hover:text-brand"
                 >
-                  {profile.instagram.startsWith("http")
-                    ? "@" + profile.instagram.split("/").filter(Boolean).pop()
-                    : profile.instagram.startsWith("@")
-                      ? profile.instagram
-                      : "@" + profile.instagram}
+                  Instagram
                 </a>
               </li>
             )}
@@ -102,13 +98,17 @@ export function SiteFooter() {
               <li className="flex items-center gap-2.5">
                 <MapPin className="size-4 shrink-0 text-brand" />
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.address)}`}
+                  href={
+                    profile.address.startsWith("http")
+                      ? profile.address
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.address)}`
+                  }
                   target="_blank"
-                  rel="noreferrer"
-                  className="min-w-0 truncate transition-colors hover:text-brand"
+                  rel="noopener noreferrer"
+                  className="transition-colors hover:text-brand"
                   title="Open Google Maps location"
                 >
-                  {profile.address}
+                  Location
                 </a>
               </li>
             )}

@@ -1,4 +1,21 @@
-const API_BASE = import.meta.env["VITE_API_URL"] ?? "http://localhost:4000";
+const getApiBase = () => {
+  const envUrl = import.meta.env["VITE_API_URL"];
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  // Prevent hardcoded http://localhost:4000 calls in production browser environments
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    return "";
+  }
+
+  return "http://localhost:4000";
+};
+
+const API_BASE = getApiBase();
+
 
 export type StudioProfile = {
   id: string;

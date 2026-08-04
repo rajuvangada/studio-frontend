@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export const Route = createFileRoute("/auth")({
+  preload: false,
   head: () => ({
     meta: [
       { title: "Studio Sign In — GK Digital Studios" },
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/auth")({
   }),
   component: AuthPage,
 });
+
 
 function AuthPage() {
   const navigate = useNavigate();

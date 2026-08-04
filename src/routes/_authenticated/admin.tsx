@@ -45,7 +45,10 @@ function AdminLayout() {
         return false;
       }
     },
+    retry: false,
+    staleTime: 1000 * 60 * 5,
   });
+
 
   async function signOut() {
     await queryClient.cancelQueries();

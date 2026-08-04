@@ -61,19 +61,15 @@ function AdminLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { data: isAdmin, isLoading } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      try {
-        const res = await api.getMe();
-        return Boolean(res?.user);
-      } catch {
-        return false;
-      }
-    },
-    retry: false,
+  const { data: userRes, isLoading } = useQuery({
+    queryKey: ["auth-user"],
+    queryFn: api.getMe,
     staleTime: 1000 * 60 * 5,
+    retry: false,
   });
+
+  const isAdmin = Boolean(userRes?.user);
+
 
   async function signOut() {
     await queryClient.cancelQueries();

@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Camera, Trash2, Upload, User } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
@@ -23,21 +25,33 @@ const fields = [
 
 function ProfileAdmin() {
   const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [ownerPhotoUrl, setOwnerPhotoUrl] = useState<string | null>(null);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["admin", "studio-profile"],
     queryFn: async () => {
       try {
-        return await api.getProfile();
+        const res = await api.getProfile();
+        if (res) {
+          setOwnerPhotoUrl(res.ownerPhotoUrl || res.owner_photo_url || null);
+        }
+        return res;
       } catch {
         return null;
       }
     },
   });
 
+  const currentPhoto = ownerPhotoUrl ?? profile?.ownerPhotoUrl ?? profile?.owner_photo_url ?? null;
+
   const save = useMutation({
     mutationFn: async (patch: Record<string, unknown>) => {
-      return await api.updateProfile(patch);
+      return await api.updateProfile({
+        ...patch,
+        ownerPhotoUrl: currentPhoto,
+      });
     },
     onSuccess: () => {
       toast.success("Studio profile saved to database successfully.");
@@ -47,12 +61,49 @@ function ProfileAdmin() {
     onError: (e: Error) => toast.error(e.message || "Failed to save profile."),
   });
 
+  async function handlePhotoChange(file: File | undefined) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (JPEG, PNG, WEBP).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image file size must be less than 10MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Direct Multer to S3 upload or S3 signed PUT
+      const formData = new FormData();
+      formData.append("file", file);
+      const updatedProfile = await api.uploadOwnerPhotoFile(formData);
+      const newUrl = updatedProfile.ownerPhotoUrl || updatedProfile.owner_photo_url || null;
+      setOwnerPhotoUrl(newUrl);
+      toast.success("Owner profile photo uploaded to AWS S3!");
+      queryClient.invalidateQueries({ queryKey: ["admin", "studio-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["studio-profile"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload photo to S3.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function handleRemovePhoto() {
+    setOwnerPhotoUrl(null);
+    save.mutate({ ownerPhotoUrl: null });
+    toast.success("Owner profile photo removed.");
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Studio profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage contact details, social links, and brand details stored in MongoDB.
+          Manage contact details, social links, owner photo, and brand details stored in MongoDB.
         </p>
       </div>
 
@@ -79,10 +130,62 @@ function ProfileAdmin() {
               address: (f.get("address") as string)?.trim() || null,
               businessHours: (f.get("businessHours") as string)?.trim() || null,
               about: (f.get("about") as string)?.trim() || null,
+              ownerPhotoUrl: currentPhoto,
             });
           }}
-          className="card-surface mt-6 grid gap-4 p-6 md:grid-cols-2"
+          className="card-surface mt-6 grid gap-6 p-6 md:grid-cols-2"
         >
+          {/* Owner Profile Photo Section */}
+          <div className="md:col-span-2 space-y-3 rounded-2xl border border-border p-5 bg-surface/50">
+            <label className="field-label">Owner Profile Photo</label>
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="relative size-24 shrink-0 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+                {currentPhoto ? (
+                  <img
+                    src={currentPhoto}
+                    alt="Owner profile photo"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-full items-center justify-center bg-surface-2 text-muted-foreground">
+                    <User className="size-10" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="btn-base btn-primary cursor-pointer">
+                    <Upload className="size-4" />
+                    {uploading ? "Uploading to S3…" : currentPhoto ? "Replace photo" : "Upload photo"}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      disabled={uploading}
+                      onChange={(e) => handlePhotoChange(e.target.files?.[0])}
+                    />
+                  </label>
+                  {currentPhoto && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      disabled={uploading}
+                      className="btn-base btn-ghost text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Supports JPEG, PNG, or WEBP up to 10MB. Uploads directly to AWS S3.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {fields.map(([name, label]) => {
             const val =
               (profile?.[name as keyof StudioProfile] as string | null | undefined) ??
@@ -109,6 +212,7 @@ function ProfileAdmin() {
               </div>
             );
           })}
+
           <div className="md:col-span-2">
             <label className="field-label" htmlFor="businessHours">
               Business hours
@@ -134,7 +238,7 @@ function ProfileAdmin() {
             />
           </div>
           <div className="md:col-span-2">
-            <button type="submit" disabled={save.isPending} className="btn-base btn-primary">
+            <button type="submit" disabled={save.isPending || uploading} className="btn-base btn-primary">
               {save.isPending ? "Saving to database…" : "Save profile"}
             </button>
           </div>

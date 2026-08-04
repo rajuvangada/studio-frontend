@@ -1,23 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Award, BadgeCheck } from "lucide-react";
+import { Award, BadgeCheck, Camera, Mail, MapPin, Phone, User } from "lucide-react";
 
 import { Reveal } from "@/components/site/Reveal";
 import { PageHero, SiteLayout } from "@/components/site/SiteLayout";
 import { AWARDS, HIGHLIGHTS, OWNER_NAME, OWNER_TITLE, SKILLS } from "@/lib/gk";
-import { studioProfileQuery } from "@/lib/studio";
-
-const PORTRAIT =
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80";
+import { studioProfileQuery, whatsappHref } from "@/lib/studio";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About Govind Kumar Gella — GK Digital Studios" },
+      { title: "About Studio — GK Digital Studios" },
       {
         name: "description",
         content:
-          "Govind Kumar Gella, founder of GK Digital Studios: 6+ years of professional photography and cinematography, a Diploma in Photography and international award recognition.",
+          "Professional photography and cinematography studio specializing in weddings, editorial portraits, and visual storytelling.",
       },
       { property: "og:title", content: "About GK Digital Studios" },
       {
@@ -25,8 +22,6 @@ export const Route = createFileRoute("/about")({
         content:
           "Award-winning photographer and cinematographer creating elegant, emotional and timeless visual stories.",
       },
-      { property: "og:image", content: PORTRAIT },
-      { name: "twitter:image", content: PORTRAIT },
     ],
   }),
   component: AboutPage,
@@ -35,30 +30,69 @@ export const Route = createFileRoute("/about")({
 function AboutPage() {
   const { data: profile } = useQuery(studioProfileQuery);
 
+  const ownerName = profile?.ownerName || profile?.owner_name || OWNER_NAME;
+  const ownerTitle = profile?.tagline || OWNER_TITLE;
+  const ownerPhoto = profile?.ownerPhotoUrl || profile?.owner_photo_url || null;
+  const aboutText = profile?.about || "Award-winning wedding, portrait, and cinematic photography studio.";
+
   return (
     <SiteLayout>
-      <PageHero eyebrow="About the founder" title="Govind Kumar Gella" intro={OWNER_TITLE} />
+      <PageHero eyebrow="About the founder" title={ownerName} intro={ownerTitle} />
 
       <section className="shell pb-24">
         <div className="grid gap-14 md:grid-cols-2 md:items-center">
           <Reveal>
-            <img
-              src={PORTRAIT}
-              alt={`${OWNER_NAME}, founder and creative director of GK Digital Studios`}
-              loading="lazy"
-              width={900}
-              height={1200}
-              className="w-full rounded-2xl border border-border object-cover shadow-[var(--shadow-lift)]"
-            />
+            {ownerPhoto ? (
+              <img
+                src={ownerPhoto}
+                alt={`${ownerName}, founder of ${profile?.studioName || profile?.studio_name || "GK Digital Studios"}`}
+                loading="lazy"
+                className="w-full aspect-[3/4] max-h-[600px] rounded-2xl border border-border object-cover shadow-[var(--shadow-lift)]"
+              />
+            ) : (
+              <div className="flex aspect-[3/4] max-h-[600px] w-full flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-surface-2 p-12 text-center text-muted-foreground shadow-sm">
+                <div className="flex size-20 items-center justify-center rounded-full bg-surface border border-border">
+                  <User className="size-10 text-brand" />
+                </div>
+                <div>
+                  <h3 className="font-display text-2xl text-foreground">{ownerName}</h3>
+                  <p className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">
+                    {profile?.studioName || profile?.studio_name || "GK Digital Studios"}
+                  </p>
+                </div>
+              </div>
+            )}
           </Reveal>
           <Reveal delay={0.1}>
             <div className="max-w-prose space-y-6 text-sm leading-relaxed text-muted-foreground">
-              <p className="text-base text-foreground">
-                {profile?.about ?? "Photography is not just my profession—it is my passion."}
+              <p className="text-base text-foreground whitespace-pre-line">
+                {aboutText}
               </p>
               <p className="text-[0.7rem] uppercase tracking-[0.22em] text-brand">
-                {profile?.owner_name ?? OWNER_NAME} · Founder &amp; Creative Director
+                {ownerName} · Founder &amp; Creative Director
               </p>
+
+              {/* Dynamic Contact details */}
+              <div className="mt-8 space-y-3 pt-6 border-t border-border">
+                {profile?.email && (
+                  <div className="flex items-center gap-3 text-xs text-foreground">
+                    <Mail className="size-4 text-brand shrink-0" />
+                    <span>{profile.email}</span>
+                  </div>
+                )}
+                {profile?.phone && (
+                  <div className="flex items-center gap-3 text-xs text-foreground">
+                    <Phone className="size-4 text-brand shrink-0" />
+                    <span>{profile.phone}</span>
+                  </div>
+                )}
+                {profile?.address && (
+                  <div className="flex items-center gap-3 text-xs text-foreground">
+                    <MapPin className="size-4 text-brand shrink-0" />
+                    <span>{profile.address}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </Reveal>
         </div>

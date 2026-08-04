@@ -28,14 +28,20 @@ export function formatDate(value?: string | null) {
 export type StudioProfile = {
   id: string;
   studio_name: string;
+  studioName?: string;
   owner_name: string | null;
+  ownerName?: string | null;
   logo_url: string | null;
+  logoUrl?: string | null;
+  owner_photo_url?: string | null;
+  ownerPhotoUrl?: string | null;
   phone: string | null;
   whatsapp: string | null;
   email: string | null;
   instagram: string | null;
   address: string | null;
   business_hours: string | null;
+  businessHours?: string | null;
   tagline: string | null;
   about: string | null;
 };

@@ -17,6 +17,8 @@ export type StudioProfile = {
   ownerName?: string | null;
   logo_url?: string | null;
   logoUrl?: string | null;
+  owner_photo_url?: string | null;
+  ownerPhotoUrl?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
   email?: string | null;
@@ -240,6 +242,20 @@ export const api = {
     const res = await apiFetch<{ profile: StudioProfile }>("/api/profile", {
       method: "PUT",
       body: JSON.stringify(patch),
+    });
+    return res.profile;
+  },
+
+  signOwnerPhotoUpload: (fileName: string, contentType: string) =>
+    apiFetch<{ key: string; uploadUrl: string }>("/api/profile/photo/sign", {
+      method: "POST",
+      body: JSON.stringify({ fileName, contentType }),
+    }),
+
+  uploadOwnerPhotoFile: async (formData: FormData) => {
+    const res = await apiFetch<{ profile: StudioProfile }>("/api/profile/photo/upload", {
+      method: "POST",
+      body: formData,
     });
     return res.profile;
   },

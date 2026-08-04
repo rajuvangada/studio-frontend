@@ -138,32 +138,50 @@ export async function apiFetch<T = unknown>(
     }
   }
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-  if (!res.ok) {
-    let errorMessage = `API request failed with status ${res.status}`;
-    try {
-      const errorData = (await res.json()) as Record<string, unknown>;
-      const msg = errorData["message"];
-      const err = errorData["error"];
-      if (typeof msg === "string") errorMessage = msg;
-      else if (typeof err === "string") errorMessage = err;
-    } catch {
-      // Ignore non-JSON error response body
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+      signal: options.signal || controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let errorMessage = `API request failed with status ${res.status}`;
+      try {
+        const errorData = (await res.json()) as Record<string, unknown>;
+        const msg = errorData["message"];
+        const err = errorData["error"];
+        if (typeof msg === "string") errorMessage = msg;
+        else if (typeof err === "string") errorMessage = err;
+      } catch {
+        // Ignore non-JSON error response body
+      }
+      throw new Error(errorMessage);
     }
-    throw new Error(errorMessage);
-  }
 
-  const contentType = res.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return (await res.json()) as T;
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return (await res.json()) as T;
+    }
+    return (await res.text()) as unknown as T;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`API request timed out (${url}). Ensure backend server is running and accessible.`);
+    }
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      throw new Error(`Cannot connect to backend API (${url}). Check network or VITE_API_URL setting.`);
+    }
+    throw err;
   }
-  return (await res.text()) as unknown as T;
 }
+
 
 export const api = {
   // Auth

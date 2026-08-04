@@ -51,11 +51,13 @@ function AuthPage() {
       <header className="relative z-20 flex items-center justify-between px-6 py-6 lg:px-12">
         <Link
           to="/"
+          preload={false}
           className="group inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" />
           <span>Back to Studio</span>
         </Link>
+
         <div className="flex items-center gap-3">
           <ThemeToggle />
         </div>

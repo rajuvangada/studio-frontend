@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Award, BadgeCheck, Camera, Mail, MapPin, Phone, User } from "lucide-react";
 
 import { Reveal } from "@/components/site/Reveal";
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   const { data: profile } = useQuery(studioProfileQuery);
+  const [imageError, setImageError] = useState(false);
 
   const ownerName = profile?.ownerName || profile?.owner_name || OWNER_NAME;
   const ownerTitle = profile?.tagline || OWNER_TITLE;
@@ -42,11 +44,12 @@ function AboutPage() {
       <section className="shell pb-24">
         <div className="grid gap-14 md:grid-cols-2 md:items-center">
           <Reveal>
-            {ownerPhoto ? (
+            {ownerPhoto && !imageError ? (
               <img
                 src={ownerPhoto}
                 alt={`${ownerName}, founder of ${profile?.studioName || profile?.studio_name || "GK Digital Studios"}`}
                 loading="lazy"
+                onError={() => setImageError(true)}
                 className="w-full aspect-[3/4] max-h-[600px] rounded-2xl border border-border object-cover shadow-[var(--shadow-lift)]"
               />
             ) : (

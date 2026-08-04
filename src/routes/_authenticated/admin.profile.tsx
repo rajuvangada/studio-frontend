@@ -27,16 +27,14 @@ function ProfileAdmin() {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [ownerPhotoUrl, setOwnerPhotoUrl] = useState<string | null>(null);
+  const [localPhotoUrl, setLocalPhotoUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["admin", "studio-profile"],
     queryFn: async () => {
       try {
         const res = await api.getProfile();
-        if (res) {
-          setOwnerPhotoUrl(res.ownerPhotoUrl || res.owner_photo_url || null);
-        }
         return res;
       } catch {
         return null;
@@ -44,7 +42,7 @@ function ProfileAdmin() {
     },
   });
 
-  const currentPhoto = ownerPhotoUrl ?? profile?.ownerPhotoUrl ?? profile?.owner_photo_url ?? null;
+  const currentPhoto = localPhotoUrl ?? profile?.ownerPhotoUrl ?? profile?.owner_photo_url ?? null;
 
   const save = useMutation({
     mutationFn: async (patch: Record<string, unknown>) => {
@@ -53,8 +51,12 @@ function ProfileAdmin() {
         ownerPhotoUrl: currentPhoto,
       });
     },
-    onSuccess: () => {
+    onSuccess: (updated) => {
       toast.success("Studio profile saved to database successfully.");
+      const newUrl = updated.ownerPhotoUrl || updated.owner_photo_url || null;
+      if (newUrl) setLocalPhotoUrl(newUrl);
+      queryClient.setQueryData(["admin", "studio-profile"], updated);
+      queryClient.setQueryData(["studio-profile"], updated);
       queryClient.invalidateQueries({ queryKey: ["admin", "studio-profile"] });
       queryClient.invalidateQueries({ queryKey: ["studio-profile"] });
     },
@@ -73,15 +75,21 @@ function ProfileAdmin() {
       return;
     }
 
+    // Instant local blob preview for immediate UI feedback
+    const previewBlobUrl = URL.createObjectURL(file);
+    setLocalPhotoUrl(previewBlobUrl);
+    setImageError(false);
+
     setUploading(true);
     try {
-      // Direct Multer to S3 upload or S3 signed PUT
       const formData = new FormData();
       formData.append("file", file);
       const updatedProfile = await api.uploadOwnerPhotoFile(formData);
       const newUrl = updatedProfile.ownerPhotoUrl || updatedProfile.owner_photo_url || null;
-      setOwnerPhotoUrl(newUrl);
+      setLocalPhotoUrl(newUrl);
       toast.success("Owner profile photo uploaded to AWS S3!");
+      queryClient.setQueryData(["admin", "studio-profile"], updatedProfile);
+      queryClient.setQueryData(["studio-profile"], updatedProfile);
       queryClient.invalidateQueries({ queryKey: ["admin", "studio-profile"] });
       queryClient.invalidateQueries({ queryKey: ["studio-profile"] });
     } catch (err) {
@@ -93,7 +101,8 @@ function ProfileAdmin() {
   }
 
   function handleRemovePhoto() {
-    setOwnerPhotoUrl(null);
+    setLocalPhotoUrl(null);
+    setImageError(false);
     save.mutate({ ownerPhotoUrl: null });
     toast.success("Owner profile photo removed.");
   }
@@ -140,15 +149,17 @@ function ProfileAdmin() {
             <label className="field-label">Owner Profile Photo</label>
             <div className="flex flex-wrap items-center gap-6">
               <div className="relative size-24 shrink-0 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-                {currentPhoto ? (
+                {currentPhoto && !imageError ? (
                   <img
                     src={currentPhoto}
                     alt="Owner profile photo"
+                    onError={() => setImageError(true)}
                     className="size-full object-cover"
                   />
                 ) : (
-                  <div className="flex size-full items-center justify-center bg-surface-2 text-muted-foreground">
-                    <User className="size-10" />
+                  <div className="flex size-full flex-col items-center justify-center bg-surface-2 text-muted-foreground">
+                    <User className="size-8 text-brand" />
+                    <span className="mt-1 text-[0.65rem] text-muted-foreground">No Photo</span>
                   </div>
                 )}
               </div>

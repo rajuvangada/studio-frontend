@@ -29,6 +29,32 @@ const nav = [
   { to: "/admin/profile", label: "Studio profile", icon: Settings, exact: false },
 ] as const;
 
+function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  return (
+    <nav className="space-y-1">
+      {nav.map((item) => {
+        const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+              active
+                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+            )}
+          >
+            <item.icon className="size-4 shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 function AdminLayout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -48,7 +74,6 @@ function AdminLayout() {
     retry: false,
     staleTime: 1000 * 60 * 5,
   });
-
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -91,29 +116,6 @@ function AdminLayout() {
     );
   }
 
-  const NavList = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <nav className="space-y-1">
-      {nav.map((item) => {
-        const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-              active
-                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-            )}
-          >
-            <item.icon className="size-4 shrink-0" />
-            <span className="truncate">{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -127,7 +129,7 @@ function AdminLayout() {
           <span className="text-xs font-sans font-normal text-muted-foreground">Studio</span>
         </Link>
         <div className="mt-8 flex-1 overflow-y-auto">
-          <NavList />
+          <NavList pathname={pathname} />
         </div>
         <div className="mt-auto space-y-1 border-t border-sidebar-border pt-4">
           <div className="flex items-center justify-between px-2 pb-1">
@@ -161,7 +163,7 @@ function AdminLayout() {
               </button>
             </div>
             <div className="mt-8 flex-1 overflow-y-auto">
-              <NavList onNavigate={() => setDrawerOpen(false)} />
+              <NavList pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
             </div>
             <div className="mt-auto space-y-1 border-t border-sidebar-border pt-4">
               <div className="flex items-center justify-between px-2 pb-1">
@@ -179,6 +181,7 @@ function AdminLayout() {
           </aside>
         </div>
       )}
+
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur sm:px-6">

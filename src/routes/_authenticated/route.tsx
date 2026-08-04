@@ -5,7 +5,7 @@ export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   preload: false,
   beforeLoad: async ({ context, location }) => {
-    if (location.pathname === "/auth") return;
+    if (location.pathname === "/auth") return { user: null };
     try {
       const res = await context.queryClient.fetchQuery({
         queryKey: ["auth-user"],
@@ -14,10 +14,14 @@ export const Route = createFileRoute("/_authenticated")({
       });
       if (!res || !res.user) throw new Error("Unauthorized");
       return { user: res.user };
-    } catch {
+    } catch (err) {
+      if (err && typeof err === "object" && "to" in err) {
+        throw err;
+      }
       if (location.pathname !== "/auth") {
         throw redirect({ to: "/auth" });
       }
+      return { user: null };
     }
   },
   component: () => <Outlet />,

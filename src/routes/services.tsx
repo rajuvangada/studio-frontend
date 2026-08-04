@@ -31,41 +31,62 @@ function ServicesPage() {
     <SiteLayout>
       <PageHero
         eyebrow="Services"
-        title="Collections"
-        intro="Coverage shaped around the day rather than a package sheet. Everything below can be tailored."
+        title="Collections & Services"
+        intro="Cinematic photography and video coverage shaped around your day. Everything below can be customized to your requirements."
       />
 
       <section className="shell pb-24">
         {isLoading ? (
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="card-surface h-56 p-10">
-                <div className="skeleton h-6 w-24 rounded-full" />
-                <div className="skeleton mt-5 h-8 w-2/3" />
-                <div className="skeleton mt-4 h-4 w-full" />
-                <div className="skeleton mt-2 h-4 w-5/6" />
+              <div key={i} className="card-surface h-72 p-8">
+                <div className="skeleton h-48 w-full rounded-xl" />
+                <div className="skeleton mt-5 h-6 w-2/3" />
+                <div className="skeleton mt-3 h-4 w-full" />
               </div>
             ))}
           </div>
-        ) : services.length === 0 ? (
-          <div className="panel px-6 py-16 text-center">
-            <p className="text-sm text-muted-foreground">Collections are being updated.</p>
-          </div>
         ) : (
-          <div className="grid gap-5 md:grid-cols-2">
-            {services.map((s, i) => (
-              <Reveal key={s.id} delay={i * 0.06}>
-                <article className="card-surface card-interactive lift flex h-full flex-col justify-between p-10">
-                  <div>
-                    {s.price_from && <span className="chip-brand">{s.price_from}</span>}
-                    <h2 className="mt-5 font-display text-3xl">{s.title}</h2>
-                    <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground">
-                      {s.description}
-                    </p>
-                  </div>
-                </article>
-              </Reveal>
-            ))}
+          <div className="grid gap-6 md:grid-cols-2">
+            {services.map((s, i) => {
+              const coverUrl = s.coverImageUrl || s.cover_image_url || null;
+              return (
+                <Reveal key={s.id || s._id || i} delay={i * 0.06}>
+                  <article className="card-surface card-interactive lift flex h-full flex-col justify-between overflow-hidden p-8">
+                    <div>
+                      {coverUrl && (
+                        <div className="relative mb-6 aspect-[16/9] w-full overflow-hidden rounded-xl border border-border bg-surface-2">
+                          <img
+                            src={coverUrl}
+                            alt={s.title}
+                            loading="lazy"
+                            className="size-full object-cover transition-transform duration-500 hover:scale-105"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {s.category && <span className="chip-brand text-[0.65rem]">{s.category}</span>}
+                        {s.featured && <span className="chip-brand border-brand/50 bg-brand/10 text-brand text-[0.65rem]">Featured</span>}
+                        {(s.priceFrom || s.price_from) && <span className="chip-secondary text-[0.65rem]">{s.priceFrom || s.price_from}</span>}
+                      </div>
+                      <h2 className="mt-4 font-display text-2xl text-foreground md:text-3xl">{s.title}</h2>
+                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                        {s.description}
+                      </p>
+                    </div>
+
+                    <div className="mt-8 pt-4 border-t border-border flex items-center justify-between">
+                      <Link
+                        to="/contact"
+                        className="btn-base btn-ghost text-xs text-brand hover:text-brand"
+                      >
+                        Request Quote &rarr;
+                      </Link>
+                    </div>
+                  </article>
+                </Reveal>
+              );
+            })}
           </div>
         )}
 

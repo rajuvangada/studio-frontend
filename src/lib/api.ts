@@ -132,6 +132,23 @@ export type ActivityEventItem = {
   created_at?: string;
 };
 
+export type ServiceItem = {
+  id: string;
+  _id?: string;
+  title: string;
+  description: string;
+  category?: string | null;
+  priceFrom?: string | null;
+  price_from?: string | null;
+  coverImageKey?: string | null;
+  coverImageUrl?: string | null;
+  cover_image_url?: string | null;
+  sortOrder?: number;
+  sort_order?: number;
+  featured?: boolean;
+  published?: boolean;
+};
+
 export async function apiFetch<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
@@ -261,7 +278,42 @@ export const api = {
     return res.profile;
   },
 
-  getServices: () => apiFetch<Record<string, unknown>[]>("/api/services"),
+  getServices: async () => {
+    const res = await apiFetch<{ services: ServiceItem[] }>("/api/services");
+    return res.services || [];
+  },
+
+  getAdminServices: async () => {
+    const res = await apiFetch<{ services: ServiceItem[] }>("/api/services/admin");
+    return res.services || [];
+  },
+
+  createService: async (data: Record<string, unknown>) => {
+    const res = await apiFetch<{ service: ServiceItem }>("/api/services", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return res.service;
+  },
+
+  updateService: async (id: string, patch: Record<string, unknown>) => {
+    const res = await apiFetch<{ service: ServiceItem }>(`/api/services/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    return res.service;
+  },
+
+  deleteService: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/services/${id}`, { method: "DELETE" }),
+
+  uploadServiceCover: async (formData: FormData) => {
+    const res = await apiFetch<{ coverImageUrl: string; service?: ServiceItem }>("/api/services/cover/upload", {
+      method: "POST",
+      body: formData,
+    });
+    return res;
+  },
 
   getPortfolio: async () => {
     const res = await apiFetch<{ items: PortfolioItem[] }>("/api/portfolio");

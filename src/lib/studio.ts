@@ -61,10 +61,18 @@ export type PortfolioItem = {
 
 export type ServiceItem = {
   id: string;
+  _id?: string;
   title: string;
   description: string | null;
-  price_from: string | null;
-  sort_order: number;
+  category?: string | null;
+  priceFrom?: string | null;
+  price_from?: string | null;
+  coverImageKey?: string | null;
+  coverImageUrl?: string | null;
+  cover_image_url?: string | null;
+  sortOrder?: number;
+  sort_order?: number;
+  featured?: boolean;
   published: boolean;
 };
 

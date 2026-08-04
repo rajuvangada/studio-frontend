@@ -8,6 +8,7 @@ import {
   Menu,
   MessageSquare,
   Settings,
+  Sparkles,
   Users,
   X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const nav = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { to: "/admin/clients", label: "Clients", icon: Users, exact: false },
   { to: "/admin/portfolio", label: "Portfolio", icon: Images, exact: false },
+  { to: "/admin/services", label: "Services", icon: Sparkles, exact: false },
   { to: "/admin/inquiries", label: "Inquiries", icon: MessageSquare, exact: false },
   { to: "/admin/profile", label: "Studio profile", icon: Settings, exact: false },
 ] as const;

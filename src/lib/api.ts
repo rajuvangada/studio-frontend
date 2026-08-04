@@ -1,21 +1,13 @@
-const getApiBase = () => {
+export const getApiBase = () => {
   const envUrl = import.meta.env["VITE_API_URL"];
-  if (envUrl) return envUrl.replace(/\/$/, "");
-
-  // Prevent hardcoded http://localhost:4000 calls in production browser environments
-  if (
-    typeof window !== "undefined" &&
-    window.location.hostname !== "localhost" &&
-    window.location.hostname !== "127.0.0.1"
-  ) {
-    return "";
+  if (envUrl && envUrl.trim() !== "") {
+    return envUrl.trim().replace(/\/$/, "");
   }
 
   return "http://localhost:4000";
 };
 
-const API_BASE = getApiBase();
-
+export const API_BASE = getApiBase();
 
 export type StudioProfile = {
   id: string;
@@ -142,7 +134,12 @@ export async function apiFetch<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
+  const baseUrl = API_BASE.replace(/\/$/, "");
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url =
+    endpoint.startsWith("http://") || endpoint.startsWith("https://")
+      ? endpoint
+      : `${baseUrl}${path}`;
 
   const headers = new Headers(options.headers || {});
   if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {

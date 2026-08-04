@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, API_BASE } from "./api";
 
 export const BUCKET = "client-media";
 
@@ -6,7 +6,7 @@ export const BUCKET = "client-media";
 export function publicMediaUrl(path: string | null | undefined) {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("/")) return path;
-  const baseUrl = import.meta.env["VITE_API_URL"] ?? "http://localhost:4000";
+  const baseUrl = API_BASE.replace(/\/$/, "");
   return `${baseUrl}/uploads/${path}`;
 }
 

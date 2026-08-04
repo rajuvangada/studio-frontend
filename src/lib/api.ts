@@ -318,6 +318,11 @@ export const api = {
     }),
 
   // Client Gallery Proofing (Public Client Portal)
+  getGalleryInfo: (token: string) =>
+    apiFetch<{ ok: boolean; name: string; eventName?: string; galleryPublished: boolean }>(
+      `/api/gallery/${token}/info`,
+    ),
+
   openGallery: (token: string, passcode?: string) =>
     apiFetch<{ client?: ClientItem; photos?: MediaItem[]; submittedAt?: string | null }>(
       `/api/gallery/${token}/open`,

@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronLeft, ChevronRight, Heart, Lock, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Heart, Lock, Video, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
 import {
   openGallery,
   submitSelection,
@@ -44,6 +45,19 @@ function GalleryPage() {
   const toggle = useServerFn(toggleSelection);
   const submit = useServerFn(submitSelection);
 
+  // Validate gallery token and publication status
+  const { data: infoData, error: infoError, isLoading: infoLoading } = useQuery({
+    queryKey: ["gallery-info", token],
+    queryFn: async () => {
+      try {
+        return await api.getGalleryInfo(token);
+      } catch (err: any) {
+        throw err;
+      }
+    },
+    retry: false,
+  });
+
   const unlock = useMutation({
     mutationFn: () => open({ data: { token, passcode } }),
     onSuccess: (result) => {
@@ -51,10 +65,10 @@ function GalleryPage() {
         setLockMessage(null);
         setUnlocked(result.gallery);
       } else {
-        setLockMessage(result.message);
+        setLockMessage(result.message || "Incorrect passcode.");
       }
     },
-    onError: (e: Error) => setLockMessage(e.message || "Could not open this gallery."),
+    onError: (e: Error) => setLockMessage(e.message || "Incorrect passcode."),
   });
 
   const toggleMutation = useMutation({
@@ -97,6 +111,49 @@ function GalleryPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxIndex, photos.length]);
 
+  if (infoLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6 text-sm text-muted-foreground">
+        Loading client gallery…
+      </main>
+    );
+  }
+
+  // Handling Requirement 9: Invalid gallery token -> 404 page
+  // Handling Requirement 8: Unpublished gallery -> "Gallery is not available." page
+  if (infoError) {
+    const errorMsg = infoError instanceof Error ? infoError.message : "Gallery not available.";
+    const isUnpublished = errorMsg.includes("not available");
+
+    if (isUnpublished) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-background px-6">
+          <div className="card-surface w-full max-w-sm rounded-3xl p-10 text-center shadow-[var(--shadow-lg)]">
+            <div className="mx-auto grid size-12 place-items-center rounded-full bg-surface-2">
+              <Lock className="size-5 text-muted-foreground" />
+            </div>
+            <h1 className="mt-6 font-display text-2xl text-foreground">Gallery is not available.</h1>
+            <p className="mt-3 text-sm text-muted-foreground">
+              This gallery has not been published yet. Please contact the studio for access.
+            </p>
+          </div>
+        </main>
+      );
+    }
+
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="card-surface w-full max-w-sm rounded-3xl p-10 text-center shadow-[var(--shadow-lg)]">
+          <h1 className="font-display text-4xl text-brand">404</h1>
+          <h2 className="mt-4 font-display text-xl text-foreground">Gallery Not Found</h2>
+          <p className="mt-3 text-sm text-muted-foreground">
+            The requested gallery link is invalid or has expired.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (!unlocked) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-6">
@@ -115,7 +172,8 @@ function GalleryPage() {
           </div>
           <h1 className="mt-6 font-display text-3xl text-foreground">Private gallery</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            Enter the passcode from your studio email.
+            {infoData?.eventName || infoData?.name ? `${infoData.eventName || infoData.name} — ` : ""}
+            Enter the passcode provided by the studio.
           </p>
           <div className="field mt-7 text-left">
             <label className="field-label" htmlFor="passcode">

@@ -399,19 +399,17 @@ function ClientWorkspace() {
             >
               {isPublished ? "Gallery Live (Public)" : "Publish Gallery"}
             </button>
-            {client.phone && (
-              <a
-                href={whatsappHref(
-                  client.phone,
-                  `Your private gallery is ready! Access link: ${galleryLink} — Passcode: ${client.passcode}`,
-                )}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-base btn-brand"
-              >
-                Share via WhatsApp
-              </a>
-            )}
+            <a
+              href={whatsappHref(
+                client.phone ?? "",
+                `Hi ${client.name}, your private client gallery from GK Digital Studios is ready!\n\nGallery Link: ${galleryLink}\nPasscode: ${client.passcode}`,
+              )}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-base btn-brand"
+            >
+              Share via WhatsApp
+            </a>
           </div>
         </section>
       )}

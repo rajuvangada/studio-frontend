@@ -1,0 +1,135 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Award, BadgeCheck } from "lucide-react";
+
+import { Reveal } from "@/components/site/Reveal";
+import { PageHero, SiteLayout } from "@/components/site/SiteLayout";
+import { AWARDS, HIGHLIGHTS, OWNER_NAME, OWNER_TITLE, SKILLS } from "@/lib/gk";
+import { studioProfileQuery } from "@/lib/studio";
+
+const PORTRAIT =
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80";
+
+export const Route = createFileRoute("/about")({
+  head: () => ({
+    meta: [
+      { title: "About Govind Kumar Gella — GK Digital Studios" },
+      {
+        name: "description",
+        content:
+          "Govind Kumar Gella, founder of GK Digital Studios: 6+ years of professional photography and cinematography, a Diploma in Photography and international award recognition.",
+      },
+      { property: "og:title", content: "About GK Digital Studios" },
+      {
+        property: "og:description",
+        content:
+          "Award-winning photographer and cinematographer creating elegant, emotional and timeless visual stories.",
+      },
+      { property: "og:image", content: PORTRAIT },
+      { name: "twitter:image", content: PORTRAIT },
+    ],
+  }),
+  component: AboutPage,
+});
+
+function AboutPage() {
+  const { data: profile } = useQuery(studioProfileQuery);
+
+  return (
+    <SiteLayout>
+      <PageHero eyebrow="About the founder" title="Govind Kumar Gella" intro={OWNER_TITLE} />
+
+      <section className="shell pb-24">
+        <div className="grid gap-14 md:grid-cols-2 md:items-center">
+          <Reveal>
+            <img
+              src={PORTRAIT}
+              alt={`${OWNER_NAME}, founder and creative director of GK Digital Studios`}
+              loading="lazy"
+              width={900}
+              height={1200}
+              className="w-full rounded-2xl border border-border object-cover shadow-[var(--shadow-lift)]"
+            />
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div className="max-w-prose space-y-6 text-sm leading-relaxed text-muted-foreground">
+              <p className="text-base text-foreground">
+                {profile?.about ?? "Photography is not just my profession—it is my passion."}
+              </p>
+              <p className="text-[0.7rem] uppercase tracking-[0.22em] text-brand">
+                {profile?.owner_name ?? OWNER_NAME} · Founder &amp; Creative Director
+              </p>
+            </div>
+          </Reveal>
+        </div>
+
+        {/* Highlights */}
+        <div className="mt-24">
+          <Reveal>
+            <p className="eyebrow">Credentials</p>
+            <h2 className="mt-4 text-[clamp(1.75rem,3.5vw,3rem)] font-display leading-[1.05]">
+              Professional highlights
+            </h2>
+          </Reveal>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {HIGHLIGHTS.map((item, i) => (
+              <Reveal key={item.label} delay={i * 0.06}>
+                <div className="card-surface h-full p-8">
+                  <p className="eyebrow">{item.label}</p>
+                  <p className="mt-4 font-display text-2xl text-foreground">{item.value}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+
+        {/* Awards */}
+        <div className="mt-24">
+          <Reveal>
+            <p className="eyebrow">Recognition</p>
+            <h2 className="mt-4 text-[clamp(1.75rem,3.5vw,3rem)] font-display leading-[1.05]">
+              Awards &amp; certifications
+            </h2>
+          </Reveal>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {AWARDS.map((a, i) => (
+              <Reveal key={a.title} delay={i * 0.06}>
+                <article className="card-surface card-interactive lift h-full p-8">
+                  <Award className="size-5 text-brand" />
+                  <h3 className="mt-5 font-display text-xl leading-snug">{a.title}</h3>
+                  <p className="mt-2 text-[0.7rem] uppercase tracking-[0.18em] text-brand">
+                    {a.authority}
+                  </p>
+                  <p className="mt-4 text-sm font-medium text-foreground">{a.subtitle}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {a.description}
+                  </p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+
+        {/* Skills */}
+        <div className="mt-24">
+          <Reveal>
+            <p className="eyebrow">Expertise</p>
+            <h2 className="mt-4 text-[clamp(1.75rem,3.5vw,3rem)] font-display leading-[1.05]">
+              Craft &amp; tooling
+            </h2>
+          </Reveal>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {SKILLS.map((skill, i) => (
+              <Reveal key={skill} delay={i * 0.04}>
+                <div className="panel flex h-full items-start gap-3 p-5">
+                  <BadgeCheck className="mt-0.5 size-4 shrink-0 text-brand" />
+                  <p className="text-sm leading-snug text-foreground">{skill}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+    </SiteLayout>
+  );
+}

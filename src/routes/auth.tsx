@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { motion } from "framer-motion";
 import { useState } from "react";
+
 import { toast } from "sonner";
 import { ArrowLeft, Camera, Lock, Mail, ShieldCheck, Sparkles } from "lucide-react";
 
@@ -66,12 +66,7 @@ function AuthPage() {
         <div className="grid w-full items-center gap-12 lg:grid-cols-12 lg:gap-16">
           
           {/* Left Branding Section */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="flex flex-col justify-center lg:col-span-6 space-y-8"
-          >
+          <div className="flex flex-col justify-center lg:col-span-6 space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
             {/* Logo Badge */}
             <div className="inline-flex items-center gap-3 rounded-full border border-border bg-surface px-4 py-1.5 shadow-sm w-fit">
               <div className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
@@ -112,15 +107,11 @@ function AuthPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Right Authentication Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-            className="flex items-center justify-center lg:col-span-6 lg:justify-end"
-          >
+          <div className="flex items-center justify-center lg:col-span-6 lg:justify-end animate-in fade-in slide-in-from-bottom-4 duration-500">
+
             <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-8 sm:p-10 shadow-xl transition-all">
               
               {/* Card Title */}
@@ -193,9 +184,10 @@ function AuthPage() {
                 </button>
               </form>
             </div>
-          </motion.div>
+          </div>
         </div>
       </main>
+
 
       {/* Minimal Footer */}
       <footer className="relative z-10 px-6 py-6 text-center text-xs text-muted-foreground">

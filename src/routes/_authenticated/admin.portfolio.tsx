@@ -182,7 +182,7 @@ function PortfolioAdmin() {
           ) : (
             <>
               <Upload className="size-5" />
-              {uploading ? "Uploading to S3…" : form.storageKey ? "Image ready on S3" : "Click to upload image to S3"}
+              {uploading ? "Uploading to S3…" : form.storageKey ? "Image ready on S3" : "Click to upload"}
             </>
           )}
           <input

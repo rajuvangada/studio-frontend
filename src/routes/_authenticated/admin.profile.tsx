@@ -178,17 +178,6 @@ function ProfileAdmin() {
                       onChange={(e) => handlePhotoChange(e.target.files?.[0])}
                     />
                   </label>
-                  {currentPhoto && (
-                    <button
-                      type="button"
-                      onClick={handleRemovePhoto}
-                      disabled={uploading}
-                      className="btn-base btn-ghost text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                      Remove
-                    </button>
-                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Supports JPEG, PNG, or WEBP up to 10MB. Uploads directly to AWS S3.

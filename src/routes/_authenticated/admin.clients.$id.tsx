@@ -593,7 +593,7 @@ function ClientWorkspace() {
                 {data.media.length} media item{data.media.length === 1 ? "" : "s"} uploaded
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Supports photos (JPEG, PNG, WEBP) and videos (MP4, MOV, WEBM, AVI, MPEG up to 500MB).
+                Supports photos (JPEG, PNG, WEBP) and videos (MP4, MOV, WEBM, AVI, MPEG up to 1TB).
               </p>
             </div>
             <label
@@ -922,42 +922,92 @@ function ClientWorkspace() {
       )}
 
       {/* Tab 4: Submissions */}
-      {tab === "Submissions" && (
-        <section className="mt-6 space-y-4">
-          {data.submissions.length === 0 ? (
-            <div className="card-surface flex flex-col items-center justify-center gap-2 p-12 text-center">
-              <MessageSquare className="size-6 text-muted-foreground" />
-              <p className="text-sm font-medium text-foreground">No client selections submitted yet</p>
-              <p className="text-xs text-muted-foreground">
-                Once the client submits their chosen photos from the portal, they will be listed here.
-              </p>
-            </div>
-          ) : (
-            data.submissions.map((s) => (
-              <article key={s.id || s._id} className="card-surface p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {s.photoCount ?? 0} photo{(s.photoCount ?? 0) === 1 ? "" : "s"} selected by client
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Submitted on {formatDate(s.submittedAt || s.submitted_at)}
-                    </p>
-                  </div>
-                  {(s.reviewedAt || s.reviewed_at) ? (
-                    <span className="chip chip-success flex items-center gap-1">
-                      <Check className="size-3" /> Reviewed
-                    </span>
-                  ) : (
-                    <span className="chip chip-brand">New Submission</span>
-                  )}
-                </div>
-                {s.notes && <p className="mt-3 panel p-4 text-sm text-foreground">{s.notes}</p>}
-              </article>
-            ))
-          )}
-        </section>
-      )}
+      {tab === "Submissions" && (() => {
+        const selectedMediaItems = data.media.filter((m: MediaItem) => m.selected);
+        const selectedPhotoCount = data.media.filter((m: MediaItem) => m.selected && m.kind !== "video").length;
+        const selectedVideoCount = data.media.filter((m: MediaItem) => m.selected && m.kind === "video").length;
+
+        return (
+          <section className="mt-6 space-y-4">
+            {data.submissions.length === 0 ? (
+              <div className="card-surface flex flex-col items-center justify-center gap-2 p-12 text-center">
+                <MessageSquare className="size-6 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">No client selections submitted yet</p>
+                <p className="text-xs text-muted-foreground">
+                  Once the client submits their chosen photos from the portal, they will be listed here.
+                </p>
+              </div>
+            ) : (
+              data.submissions.map((s) => {
+                let summaryText = "";
+                if (selectedPhotoCount > 0 && selectedVideoCount > 0) {
+                  summaryText = `${selectedPhotoCount} photo${selectedPhotoCount === 1 ? "" : "s"} + ${selectedVideoCount} video${selectedVideoCount === 1 ? "" : "s"} selected by client`;
+                } else if (selectedVideoCount > 0) {
+                  summaryText = `${selectedVideoCount} video${selectedVideoCount === 1 ? "" : "s"} selected by client`;
+                } else {
+                  const count = selectedPhotoCount || s.photoCount || 0;
+                  summaryText = `${count} photo${count === 1 ? "" : "s"} selected by client`;
+                }
+
+                return (
+                  <article key={s.id || s._id} className="card-surface p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">{summaryText}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Submitted on {formatDate(s.submittedAt || s.submitted_at)}
+                        </p>
+                      </div>
+                      {(s.reviewedAt || s.reviewed_at) ? (
+                        <span className="chip chip-success flex items-center gap-1">
+                          <Check className="size-3" /> Reviewed
+                        </span>
+                      ) : (
+                        <span className="chip chip-brand">New Submission</span>
+                      )}
+                    </div>
+
+                    {selectedMediaItems.length > 0 && (
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {selectedMediaItems.map((m: MediaItem) => (
+                          <div
+                            key={m.id || m._id}
+                            className="group relative overflow-hidden rounded-xl border border-border bg-surface"
+                          >
+                            {m.kind === "video" ? (
+                              <div className="relative aspect-square w-full bg-black overflow-hidden">
+                                <video
+                                  src={m.url}
+                                  controls
+                                  preload="metadata"
+                                  playsInline
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <img
+                                src={m.url}
+                                alt={m.fileName || "Selected photo"}
+                                loading="lazy"
+                                className="aspect-square w-full object-cover"
+                              />
+                            )}
+                            <p className="truncate p-2 text-xs font-medium text-foreground" title={m.fileName}>
+                              {m.fileName || "Media file"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {s.notes && <p className="mt-3 panel p-4 text-sm text-foreground">{s.notes}</p>}
+                  </article>
+                );
+              })
+            )}
+          </section>
+        );
+      })()}
 
       {/* Tab 5: Timeline Activity */}
       {tab === "Timeline" && (

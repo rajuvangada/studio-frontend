@@ -149,6 +149,106 @@ export type ServiceItem = {
   published?: boolean;
 };
 
+export function formatBytes(bytes: number, decimals = 1): string {
+  if (!bytes || bytes <= 0) return "0 B";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+export function getFileMediaDetails(file: File): { contentType: string; kind: "photo" | "video" } {
+  let contentType = file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+
+  const videoExtensions: Record<string, string> = {
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    webm: "video/webm",
+    avi: "video/x-msvideo",
+    mpeg: "video/mpeg",
+    mpg: "video/mpeg",
+    m4v: "video/mp4",
+    mkv: "video/x-matroska",
+    "3gp": "video/3gpp",
+    ogv: "video/ogg",
+  };
+
+  const imageExtensions: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    heic: "image/heic",
+    svg: "image/svg+xml",
+  };
+
+  if (!contentType || contentType === "application/octet-stream" || contentType === "binary/octet-stream") {
+    if (videoExtensions[ext]) {
+      contentType = videoExtensions[ext];
+    } else if (imageExtensions[ext]) {
+      contentType = imageExtensions[ext];
+    } else {
+      contentType = "application/octet-stream";
+    }
+  }
+
+  const isVideo = contentType.startsWith("video/") || Boolean(videoExtensions[ext]);
+  const kind: "photo" | "video" = isVideo ? "video" : "photo";
+
+  return { contentType, kind };
+}
+
+export function uploadWithProgress(options: {
+  url: string;
+  method?: string;
+  body: Blob | FormData;
+  headers?: Record<string, string>;
+  onProgress?: (loaded: number, total: number, percentage: number) => void;
+}): Promise<{ ok: boolean; status: number; responseText: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method || "PUT", options.url, true);
+
+    if (options.headers) {
+      Object.entries(options.headers).forEach(([key, val]) => {
+        xhr.setRequestHeader(key, val);
+      });
+    }
+
+    if (xhr.upload && options.onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && e.total > 0) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          options.onProgress!(e.loaded, e.total, percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        responseText: xhr.responseText,
+      });
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Network error during media upload. Check connection or CORS settings."));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error("Media upload timed out. Please check network speed or try a smaller file."));
+    };
+
+    // 15-minute timeout for large video uploads (900,000ms)
+    xhr.timeout = 900000;
+    xhr.send(options.body);
+  });
+}
+
 export async function apiFetch<T = unknown>(
   endpoint: string,
   options: RequestInit = {},
@@ -172,7 +272,7 @@ export async function apiFetch<T = unknown>(
   }
 
   const controller = new AbortController();
-  const timeoutMs = options.body instanceof FormData ? 60000 : 30000;
+  const timeoutMs = options.body instanceof FormData ? 900000 : 30000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {

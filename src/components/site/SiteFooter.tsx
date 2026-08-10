@@ -121,7 +121,7 @@ export function SiteFooter() {
           <span>
             © {new Date().getFullYear()} {studioName}
           </span>
-          <Link to="/auth" className="transition-colors hover:text-brand">
+          <Link to="/auth" className="transition-colors hover:text-brand sm:mr-28 lg:mr-36">
             Studio login
           </Link>
         </div>

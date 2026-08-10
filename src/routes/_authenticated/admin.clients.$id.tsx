@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, Image as ImageIcon, MessageSquare, RefreshCw, Trash2, Upload, Video } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Image as ImageIcon, MessageSquare, RefreshCw, Trash2, Upload, Video, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type MediaItem } from "@/lib/api";
+import { API_BASE, api, formatBytes, getFileMediaDetails, uploadWithProgress, type MediaItem } from "@/lib/api";
 import { formatDate, whatsappHref } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
@@ -16,13 +16,26 @@ export const Route = createFileRoute("/_authenticated/admin/clients/$id")({
 
 const TABS = ["Workspace", "Media", "Share", "Submissions", "Timeline"] as const;
 
+type ProgressInfo = {
+  fileIndex: number;
+  totalFiles: number;
+  fileName: string;
+  loaded: number;
+  total: number;
+  percent: number;
+  step: string;
+  errorMessage?: string;
+};
+
 function ClientWorkspace() {
   const { id } = Route.useParams();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<(typeof TABS)[number]>("Workspace");
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [progressInfo, setProgressInfo] = useState<ProgressInfo | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["admin", "client", id] });
 
@@ -87,58 +100,167 @@ function ClientWorkspace() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  async function handleUpload(files: FileList | null) {
-    if (!files?.length) return;
-    setUploading(true);
-    const total = files.length;
-    let completed = 0;
+  function handleFileSelection(files: FileList | null) {
+    if (!files || !files.length) return;
+    const fileArray = Array.from(files);
+    setSelectedFiles(fileArray);
+    setUploadState("idle");
+    setProgressInfo(null);
+  }
+
+  async function executeUpload() {
+    if (!selectedFiles.length || uploadState === "uploading") return;
+    setUploadState("uploading");
+    const totalFiles = selectedFiles.length;
+    let completedCount = 0;
 
     try {
-      for (const file of Array.from(files)) {
-        setUploadProgress(`Uploading ${completed + 1} of ${total}: ${file.name}`);
-        const kind = file.type.startsWith("video/") ? "video" : "photo";
-        const contentType = file.type || "image/jpeg";
+      for (let i = 0; i < totalFiles; i++) {
+        const file = selectedFiles[i];
+        if (!file) continue;
+        const { contentType, kind } = getFileMediaDetails(file);
 
+        setProgressInfo({
+          fileIndex: i + 1,
+          totalFiles,
+          fileName: file.name,
+          loaded: 0,
+          total: file.size,
+          percent: 0,
+          step: "Requesting upload URL...",
+        });
+
+        let uploadSuccess = false;
+        let s3Key = "";
+
+        // Step 1: Request S3 pre-signed upload URL
         try {
-          // Step 1: Sign upload key from Express API backend
           const { key, uploadUrl } = await api.signClientMediaUpload(id, file.name, contentType, kind);
+          s3Key = key;
 
-          // Step 2: PUT binary file directly to S3 URL
-          const uploadRes = await fetch(uploadUrl, {
+          // Step 2: Directly upload binary to S3 using XHR with REAL progress calculation!
+          const uploadRes = await uploadWithProgress({
+            url: uploadUrl,
             method: "PUT",
             body: file,
             headers: { "Content-Type": contentType },
+            onProgress: (loaded, total, percent) => {
+              setProgressInfo({
+                fileIndex: i + 1,
+                totalFiles,
+                fileName: file.name,
+                loaded,
+                total,
+                percent,
+                step: `Uploading ${kind}... ${percent}%`,
+              });
+            },
           });
 
-          if (!uploadRes.ok) {
-            throw new Error(`Upload failed for ${file.name} with status ${uploadRes.status}`);
+          if (uploadRes.ok) {
+            uploadSuccess = true;
           }
+        } catch (s3Err) {
+          console.warn("[media upload] Presigned S3 upload failed/fallback to API backend upload:", s3Err);
+        }
 
-          // Step 3: Confirm media record in MongoDB
+        if (uploadSuccess && s3Key) {
+          setProgressInfo({
+            fileIndex: i + 1,
+            totalFiles,
+            fileName: file.name,
+            loaded: file.size,
+            total: file.size,
+            percent: 100,
+            step: "Saving media metadata in database...",
+          });
+
           await api.confirmClientMediaUpload(id, {
-            key,
+            key: s3Key,
             fileName: file.name,
             contentType,
             sizeBytes: file.size,
             kind,
           });
-        } catch (s3Error) {
-          console.warn("[client upload] Presigned S3 upload fallback to direct backend upload:", s3Error);
+        } else {
+          // Direct API Upload fallback with REAL byte progress!
+          setProgressInfo({
+            fileIndex: i + 1,
+            totalFiles,
+            fileName: file.name,
+            loaded: 0,
+            total: file.size,
+            percent: 0,
+            step: `Uploading ${kind} via API server...`,
+          });
+
           const formData = new FormData();
           formData.append("file", file);
-          await api.uploadClientMediaFile(id, formData);
+
+          const token = typeof window !== "undefined" ? localStorage.getItem("gk_token") : null;
+          const headers: Record<string, string> = {};
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+
+          const uploadRes = await uploadWithProgress({
+            url: `${API_BASE}/api/clients/${id}/media/upload`,
+            method: "POST",
+            body: formData,
+            headers,
+            onProgress: (loaded, total, percent) => {
+              setProgressInfo({
+                fileIndex: i + 1,
+                totalFiles,
+                fileName: file.name,
+                loaded,
+                total,
+                percent,
+                step: `Uploading... ${percent}%`,
+              });
+            },
+          });
+
+          if (!uploadRes.ok) {
+            let safeMsg = "Upload failed. Please check file size or network connection.";
+            try {
+              const resJson = JSON.parse(uploadRes.responseText);
+              if (resJson.error && typeof resJson.error === "string") safeMsg = resJson.error;
+            } catch {
+              // fallback
+            }
+            throw new Error(safeMsg);
+          }
         }
 
-        completed++;
+        completedCount++;
       }
-      toast.success(`Successfully uploaded ${total} media files.`);
+
+      setUploadState("success");
+      toast.success(`Successfully uploaded ${completedCount} file(s).`);
       invalidate();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed.");
-    } finally {
-      setUploading(false);
-      setUploadProgress(null);
-      if (fileRef.current) fileRef.current.value = "";
+      setTimeout(() => {
+        setSelectedFiles([]);
+        setUploadState("idle");
+        setProgressInfo(null);
+        if (fileRef.current) fileRef.current.value = "";
+      }, 2500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Media upload failed. Please try again.";
+      setUploadState("error");
+      setProgressInfo((prev) =>
+        prev
+          ? { ...prev, step: "Upload failed", errorMessage: msg }
+          : {
+              fileIndex: 1,
+              totalFiles: 1,
+              fileName: selectedFiles[0]?.name || "File",
+              loaded: 0,
+              total: 0,
+              percent: 0,
+              step: "Upload failed",
+              errorMessage: msg,
+            },
+      );
+      toast.error(msg);
     }
   }
 
@@ -284,29 +406,152 @@ function ClientWorkspace() {
 
       {/* Tab 2: Media Gallery Upload & Management */}
       {tab === "Media" && (
-        <section className="mt-6">
+        <section className="mt-6 space-y-4">
           <div className="card-surface flex flex-wrap items-center justify-between gap-4 p-5">
             <div>
               <p className="text-sm font-medium text-foreground">
                 {data.media.length} media item{data.media.length === 1 ? "" : "s"} uploaded
               </p>
-              {uploadProgress && (
-                <p className="mt-1 text-xs text-brand">{uploadProgress}</p>
-              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Supports photos (JPEG, PNG, WEBP) and videos (MP4, MOV, WEBM, AVI, MPEG up to 500MB).
+              </p>
             </div>
-            <label className="btn-base btn-primary cursor-pointer">
+            <label
+              className={cn(
+                "btn-base btn-primary cursor-pointer",
+                uploadState === "uploading" && "opacity-50 pointer-events-none",
+              )}
+            >
               <Upload className="size-4" />
-              {uploading ? "Uploading to S3…" : "Upload media"}
+              {uploadState === "uploading" ? "Uploading..." : "Select Photos & Videos"}
               <input
                 ref={fileRef}
                 type="file"
                 multiple
                 accept="image/*,video/*"
                 hidden
-                onChange={(e) => handleUpload(e.target.files)}
+                disabled={uploadState === "uploading"}
+                onChange={(e) => handleFileSelection(e.target.files)}
               />
             </label>
           </div>
+
+          {/* Selected File & Progress Card */}
+          {selectedFiles.length > 0 && (
+            <div className="card-surface p-6 border border-brand/40 bg-surface/90 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+                <div>
+                  <h3 className="font-display text-base text-foreground">
+                    Selected Media ({selectedFiles.length} file{selectedFiles.length === 1 ? "" : "s"})
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Review selected files before uploading to S3.</p>
+                </div>
+                {uploadState !== "uploading" && (
+                  <button
+                    onClick={() => {
+                      setSelectedFiles([]);
+                      setUploadState("idle");
+                      setProgressInfo(null);
+                      if (fileRef.current) fileRef.current.value = "";
+                    }}
+                    className="btn-base btn-ghost !p-2"
+                    title="Clear selection"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Selected Files List */}
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                {selectedFiles.map((file, idx) => {
+                  const { contentType, kind } = getFileMediaDetails(file);
+                  return (
+                    <div
+                      key={`${file.name}-${idx}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2 p-3 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {kind === "video" ? (
+                          <Video className="size-4 text-brand shrink-0" />
+                        ) : (
+                          <ImageIcon className="size-4 text-brand shrink-0" />
+                        )}
+                        <span className="font-medium text-foreground truncate">{file.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="chip text-[0.65rem] uppercase">{kind}</span>
+                        <span className="font-mono text-muted-foreground">{formatBytes(file.size)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Upload Progress Bar & Status */}
+              {uploadState === "uploading" && progressInfo && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <div className="flex items-center justify-between text-xs font-medium text-foreground">
+                    <span className="truncate">{progressInfo.step}</span>
+                    <span className="font-mono text-brand shrink-0">{progressInfo.percent}%</span>
+                  </div>
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all duration-200"
+                      style={{ width: `${Math.min(100, Math.max(0, progressInfo.percent))}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[0.7rem] text-muted-foreground">
+                    <span>
+                      File {progressInfo.fileIndex} of {progressInfo.totalFiles}: {progressInfo.fileName}
+                    </span>
+                    <span>
+                      {formatBytes(progressInfo.loaded)} / {formatBytes(progressInfo.total)}
+                    </span>
+                  </div>
+                  <p className="text-[0.7rem] text-brand/80 italic">
+                    Please keep this window open while media is being uploaded to S3.
+                  </p>
+                </div>
+              )}
+
+              {/* Upload Success Banner */}
+              {uploadState === "success" && (
+                <div className="chip-success flex items-center gap-2 rounded-lg p-3 text-xs">
+                  <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
+                  <span>Media uploaded successfully and registered in gallery!</span>
+                </div>
+              )}
+
+              {/* Upload Error Banner */}
+              {uploadState === "error" && progressInfo?.errorMessage && (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
+                  <AlertCircle className="size-4 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Upload Failed</p>
+                    <p className="mt-0.5">{progressInfo.errorMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={executeUpload}
+                  disabled={uploadState === "uploading"}
+                  className="btn-base btn-primary"
+                >
+                  <Upload className="size-4" />
+                  {uploadState === "uploading"
+                    ? "Uploading..."
+                    : uploadState === "error"
+                      ? "Retry Upload"
+                      : `Start Upload (${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"})`}
+                </button>
+              </div>
+            </div>
+          )}
 
           {data.media.length === 0 ? (
             <div className="card-surface mt-4 flex flex-col items-center justify-center gap-2 p-12 text-center">

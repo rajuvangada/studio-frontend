@@ -149,7 +149,7 @@ function ClientLoginPage() {
                       required
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
-                      placeholder="e.g. ABC12345 or paste full link"
+                      placeholder="e.g. paste your gallery link"
                       className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 transition-all focus:border-foreground focus:outline-none"
                     />
                   </div>

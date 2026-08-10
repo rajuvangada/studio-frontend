@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Image as ImageIcon, MessageSquare, Pause, Play, RefreshCw, StopCircle, Trash2, Upload, Video, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, Copy, Image as ImageIcon, MessageSquare, Pause, Play, RefreshCw, StopCircle, Trash2, Upload, Video, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -50,6 +51,34 @@ function ClientWorkspace() {
   const isPausedRef = useRef(false);
   const isCancelledRef = useRef(false);
   const activeSessionRef = useRef<MultipartSession | null>(null);
+
+  // Large Media Preview State
+  const [previewMediaList, setPreviewMediaList] = useState<MediaItem[]>([]);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  function openPreview(list: MediaItem[], index: number) {
+    setPreviewMediaList(list);
+    setPreviewIndex(index);
+  }
+
+  function closePreview() {
+    setPreviewIndex(null);
+  }
+
+  useEffect(() => {
+    if (previewIndex === null) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setPreviewIndex(null);
+      if (e.key === "ArrowLeft") {
+        setPreviewIndex((i) => (i === null ? null : Math.max(0, i - 1)));
+      }
+      if (e.key === "ArrowRight") {
+        setPreviewIndex((i) => (i === null ? null : Math.min(previewMediaList.length - 1, i + 1)));
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewIndex, previewMediaList.length]);
 
   useEffect(() => {
     const handleOffline = () => {
@@ -819,10 +848,12 @@ function ClientWorkspace() {
             </div>
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-              {data.media.map((m: MediaItem) => (
+              {data.media.map((m: MediaItem, idx: number) => (
                 <figure
                   key={m.id || m._id}
-                  className="group relative overflow-hidden rounded-xl border border-border bg-surface"
+                  onClick={() => openPreview(data.media, idx)}
+                  className="group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-surface hover:border-brand transition-colors"
+                  title="Click to view large preview"
                 >
                   {m.kind === "video" ? (
                     <div className="relative aspect-square w-full bg-black overflow-hidden">
@@ -832,6 +863,7 @@ function ClientWorkspace() {
                         preload="metadata"
                         playsInline
                         className="h-full w-full object-cover"
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
                   ) : (
@@ -839,19 +871,20 @@ function ClientWorkspace() {
                       src={m.url}
                       alt={m.fileName || m.file_name || "Media"}
                       loading="lazy"
-                      className="aspect-square w-full object-cover"
+                      className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                   )}
                   {m.selected && (
-                    <span className="chip chip-brand absolute left-2 top-2">Selected</span>
+                    <span className="chip chip-brand absolute left-2 top-2 z-10">Selected</span>
                   )}
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (confirm("Delete this file permanently?")) {
                         deleteMedia.mutate(m.id || m._id || "");
                       }
                     }}
-                    className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-background/90 text-destructive opacity-0 shadow-[var(--shadow-sm)] transition-opacity group-hover:opacity-100"
+                    className="absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full bg-background/90 text-destructive opacity-0 shadow-[var(--shadow-sm)] transition-opacity group-hover:opacity-100"
                     title="Delete Media"
                   >
                     <Trash2 className="size-4" />
@@ -969,10 +1002,12 @@ function ClientWorkspace() {
 
                     {selectedMediaItems.length > 0 && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                        {selectedMediaItems.map((m: MediaItem) => (
+                        {selectedMediaItems.map((m: MediaItem, idx: number) => (
                           <div
                             key={m.id || m._id}
-                            className="group relative overflow-hidden rounded-xl border border-border bg-surface"
+                            onClick={() => openPreview(selectedMediaItems, idx)}
+                            className="group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-surface hover:border-brand transition-colors"
+                            title="Click for large preview"
                           >
                             {m.kind === "video" ? (
                               <div className="relative aspect-square w-full bg-black overflow-hidden">
@@ -982,14 +1017,18 @@ function ClientWorkspace() {
                                   preload="metadata"
                                   playsInline
                                   className="h-full w-full object-cover"
+                                  onClick={(e) => e.stopPropagation()}
                                 />
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors">
+                                  <Play className="size-8 text-white drop-shadow-md" />
+                                </div>
                               </div>
                             ) : (
                               <img
                                 src={m.url}
                                 alt={m.fileName || "Selected photo"}
                                 loading="lazy"
-                                className="aspect-square w-full object-cover"
+                                className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                               />
                             )}
                             <p className="truncate p-2 text-xs font-medium text-foreground" title={m.fileName}>
@@ -1000,7 +1039,14 @@ function ClientWorkspace() {
                       </div>
                     )}
 
-                    {s.notes && <p className="mt-3 panel p-4 text-sm text-foreground">{s.notes}</p>}
+                    {s.notes && s.notes.trim() && (
+                      <div className="mt-4 rounded-xl border border-border/80 bg-surface-2/50 p-4">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                          Note from client
+                        </p>
+                        <p className="mt-1 text-sm text-foreground">{s.notes}</p>
+                      </div>
+                    )}
                   </article>
                 );
               })
@@ -1034,6 +1080,87 @@ function ClientWorkspace() {
           )}
         </section>
       )}
+
+      {/* Large Media Preview Modal */}
+      <AnimatePresence>
+        {previewIndex !== null && previewMediaList[previewIndex] && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 md:p-8"
+            onClick={closePreview}
+          >
+            <button
+              type="button"
+              onClick={closePreview}
+              className="absolute right-4 top-4 z-50 grid size-10 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              aria-label="Close preview"
+            >
+              <X className="size-5" />
+            </button>
+
+            {previewIndex > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewIndex((i) => (i === null ? i : Math.max(i - 1, 0)));
+                }}
+                className="absolute left-3 top-1/2 z-50 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 md:left-6"
+                aria-label="Previous media"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+            )}
+
+            {previewIndex < previewMediaList.length - 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewIndex((i) => (i === null ? i : Math.min(i + 1, previewMediaList.length - 1)));
+                }}
+                className="absolute right-3 top-1/2 z-50 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 md:right-6"
+                aria-label="Next media"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            )}
+
+            <motion.div
+              key={previewMediaList[previewIndex].id || previewMediaList[previewIndex]._id}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
+              className="relative flex flex-col items-center justify-center max-h-[90vh] max-w-[90vw]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {previewMediaList[previewIndex].kind === "video" ? (
+                <video
+                  src={previewMediaList[previewIndex].url}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-h-[80vh] max-w-[90vw] rounded-xl object-contain bg-black shadow-2xl"
+                />
+              ) : (
+                <img
+                  src={previewMediaList[previewIndex].url}
+                  alt={previewMediaList[previewIndex].fileName || "Selected media"}
+                  className="max-h-[80vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+                />
+              )}
+              {previewMediaList[previewIndex].fileName && (
+                <p className="mt-3 rounded-lg bg-black/60 px-3 py-1 text-xs text-white/90 backdrop-blur-sm truncate max-w-[80vw]">
+                  {previewMediaList[previewIndex].fileName}
+                </p>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

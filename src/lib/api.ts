@@ -583,6 +583,42 @@ export const api = {
     return res.media;
   },
 
+  // S3 Multipart Upload for Large Videos
+  initiateClientMultipartUpload: (clientId: string, fileName: string, contentType: string, kind: string = "video") =>
+    apiFetch<{ uploadId: string; key: string }>(`/api/clients/${clientId}/media/multipart/initiate`, {
+      method: "POST",
+      body: JSON.stringify({ fileName, contentType, kind }),
+    }),
+
+  signClientMultipartPart: (clientId: string, key: string, uploadId: string, partNumber: number) =>
+    apiFetch<{ uploadUrl: string; partNumber: number }>(`/api/clients/${clientId}/media/multipart/sign`, {
+      method: "POST",
+      body: JSON.stringify({ key, uploadId, partNumber }),
+    }),
+
+  completeClientMultipartUpload: (
+    clientId: string,
+    data: {
+      key: string;
+      uploadId: string;
+      fileName: string;
+      contentType?: string;
+      sizeBytes?: number;
+      kind?: string;
+      parts: { PartNumber: number; ETag: string }[];
+    },
+  ) =>
+    apiFetch<{ media: MediaItem }>(`/api/clients/${clientId}/media/multipart/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  abortClientMultipartUpload: (clientId: string, key: string, uploadId: string) =>
+    apiFetch<{ ok: boolean }>(`/api/clients/${clientId}/media/multipart/abort`, {
+      method: "POST",
+      body: JSON.stringify({ key, uploadId }),
+    }),
+
 
   deleteClientMedia: (clientId: string, mediaId: string) =>
     apiFetch<{ ok: boolean }>(`/api/clients/${clientId}/media/${mediaId}`, {

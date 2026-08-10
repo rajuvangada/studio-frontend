@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Image as ImageIcon, MessageSquare, RefreshCw, Trash2, Upload, Video, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, Copy, Image as ImageIcon, MessageSquare, Pause, Play, RefreshCw, StopCircle, Trash2, Upload, Video, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,16 @@ type ProgressInfo = {
   total: number;
   percent: number;
   step: string;
+  speedBytesPerSec?: number;
+  remainingSeconds?: number;
   errorMessage?: string;
+};
+
+type MultipartSession = {
+  key: string;
+  uploadId: string;
+  completedParts: { PartNumber: number; ETag: string }[];
+  partProgressMap: Map<number, number>;
 };
 
 function ClientWorkspace() {
@@ -34,8 +43,25 @@ function ClientWorkspace() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "paused" | "completing" | "success" | "error">("idle");
   const [progressInfo, setProgressInfo] = useState<ProgressInfo | null>(null);
+
+  // Pause / Resume & Cancel Refs
+  const isPausedRef = useRef(false);
+  const isCancelledRef = useRef(false);
+  const activeSessionRef = useRef<MultipartSession | null>(null);
+
+  useEffect(() => {
+    const handleOffline = () => {
+      if (uploadState === "uploading") {
+        isPausedRef.current = true;
+        setUploadState("paused");
+        toast.error("Network connection lost. Upload paused. Click Resume when online.");
+      }
+    };
+    window.addEventListener("offline", handleOffline);
+    return () => window.removeEventListener("offline", handleOffline);
+  }, [uploadState]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["admin", "client", id] });
 
@@ -106,11 +132,45 @@ function ClientWorkspace() {
     setSelectedFiles(fileArray);
     setUploadState("idle");
     setProgressInfo(null);
+    isPausedRef.current = false;
+    isCancelledRef.current = false;
+    activeSessionRef.current = null;
+  }
+
+  function handlePause() {
+    isPausedRef.current = true;
+    setUploadState("paused");
+    toast.info("Upload paused. Click Resume to continue.");
+  }
+
+  function handleResume() {
+    if (uploadState !== "paused") return;
+    isPausedRef.current = false;
+    setUploadState("uploading");
+    executeUpload();
+  }
+
+  async function handleCancel() {
+    if (confirm("Are you sure you want to cancel the video upload? Unsaved progress will be lost.")) {
+      isCancelledRef.current = true;
+      if (activeSessionRef.current) {
+        await api.abortClientMultipartUpload(id, activeSessionRef.current.key, activeSessionRef.current.uploadId).catch(() => {});
+        activeSessionRef.current = null;
+      }
+      setSelectedFiles([]);
+      setUploadState("idle");
+      setProgressInfo(null);
+      if (fileRef.current) fileRef.current.value = "";
+      toast.info("Upload cancelled.");
+    }
   }
 
   async function executeUpload() {
-    if (!selectedFiles.length || uploadState === "uploading") return;
+    if (!selectedFiles.length) return;
     setUploadState("uploading");
+    isPausedRef.current = false;
+    isCancelledRef.current = false;
+
     const totalFiles = selectedFiles.length;
     let completedCount = 0;
 
@@ -120,70 +180,169 @@ function ClientWorkspace() {
         if (!file) continue;
         const { contentType, kind } = getFileMediaDetails(file);
 
-        setProgressInfo({
-          fileIndex: i + 1,
-          totalFiles,
-          fileName: file.name,
-          loaded: 0,
-          total: file.size,
-          percent: 0,
-          step: "Requesting upload URL...",
-        });
+        if (kind === "video") {
+          // ==========================================
+          // S3 MULTIPART UPLOAD FOR LARGE VIDEOS
+          // ==========================================
+          const CHUNK_SIZE = 8 * 1024 * 1024; // 8MB chunks
+          const totalParts = Math.ceil(file.size / CHUNK_SIZE);
 
-        let uploadSuccess = false;
-        let s3Key = "";
+          let session = activeSessionRef.current;
+          let key = session?.key || "";
+          let uploadId = session?.uploadId || "";
+          let completedPartsMap = new Map<number, string>(
+            session?.completedParts.map((p) => [p.PartNumber, p.ETag]) || [],
+          );
+          let partProgressMap = session?.partProgressMap || new Map<number, number>();
 
-        // Step 1: Request S3 pre-signed upload URL
-        try {
-          const { key, uploadUrl } = await api.signClientMediaUpload(id, file.name, contentType, kind);
-          s3Key = key;
+          if (!uploadId || !key) {
+            setProgressInfo({
+              fileIndex: i + 1,
+              totalFiles,
+              fileName: file.name,
+              loaded: 0,
+              total: file.size,
+              percent: 0,
+              step: "Initiating S3 multipart upload...",
+            });
 
-          // Step 2: Directly upload binary to S3 using XHR with REAL progress calculation!
-          const uploadRes = await uploadWithProgress({
-            url: uploadUrl,
-            method: "PUT",
-            body: file,
-            headers: { "Content-Type": contentType },
-            onProgress: (loaded, total, percent) => {
-              setProgressInfo({
-                fileIndex: i + 1,
-                totalFiles,
-                fileName: file.name,
-                loaded,
-                total,
-                percent,
-                step: `Uploading ${kind}... ${percent}%`,
-              });
-            },
-          });
-
-          if (uploadRes.ok) {
-            uploadSuccess = true;
+            const initRes = await api.initiateClientMultipartUpload(id, file.name, contentType, kind);
+            key = initRes.key;
+            uploadId = initRes.uploadId;
+            session = {
+              key,
+              uploadId,
+              completedParts: [],
+              partProgressMap: new Map(),
+            };
+            activeSessionRef.current = session;
           }
-        } catch (s3Err) {
-          console.warn("[media upload] Presigned S3 upload failed/fallback to API backend upload:", s3Err);
-        }
 
-        if (uploadSuccess && s3Key) {
-          setProgressInfo({
-            fileIndex: i + 1,
-            totalFiles,
-            fileName: file.name,
-            loaded: file.size,
-            total: file.size,
-            percent: 100,
-            step: "Saving media metadata in database...",
-          });
+          const CONCURRENCY = 3;
+          let nextPartIndex = 1;
+          const startTime = Date.now();
 
-          await api.confirmClientMediaUpload(id, {
-            key: s3Key,
+          const updateProgressUI = () => {
+            let totalLoaded = 0;
+            for (const [pNum] of completedPartsMap.entries()) {
+              const pSize = pNum === totalParts ? file.size - (totalParts - 1) * CHUNK_SIZE : CHUNK_SIZE;
+              totalLoaded += pSize;
+            }
+            for (const [pNum, bytes] of partProgressMap.entries()) {
+              if (!completedPartsMap.has(pNum)) {
+                totalLoaded += bytes;
+              }
+            }
+
+            totalLoaded = Math.min(file.size, totalLoaded);
+            const percent = Math.round((totalLoaded / file.size) * 100);
+            const elapsedSec = (Date.now() - startTime) / 1000;
+            const speed = elapsedSec > 0.5 ? totalLoaded / elapsedSec : 0;
+            const remainingSec = speed > 0 ? Math.round((file.size - totalLoaded) / speed) : undefined;
+
+            const pInfo: ProgressInfo = {
+              fileIndex: i + 1,
+              totalFiles,
+              fileName: file.name,
+              loaded: totalLoaded,
+              total: file.size,
+              percent,
+              step: isPausedRef.current
+                ? "Upload paused"
+                : `Uploading video parts... ${percent}%`,
+            };
+            if (speed > 0) pInfo.speedBytesPerSec = speed;
+            if (remainingSec !== undefined) pInfo.remainingSeconds = remainingSec;
+
+            setProgressInfo(pInfo);
+          };
+
+          async function worker() {
+            while (nextPartIndex <= totalParts && !isPausedRef.current && !isCancelledRef.current) {
+              const partNumber = nextPartIndex++;
+              if (completedPartsMap.has(partNumber)) continue;
+
+              const start = (partNumber - 1) * CHUNK_SIZE;
+              const end = Math.min(file.size, start + CHUNK_SIZE);
+              const chunk = file.slice(start, end);
+
+              let attempts = 0;
+              let success = false;
+
+              while (attempts < 3 && !success && !isPausedRef.current && !isCancelledRef.current) {
+                attempts++;
+                try {
+                  const { uploadUrl } = await api.signClientMultipartPart(id, key, uploadId, partNumber);
+
+                  const uploadRes = await uploadWithProgress({
+                    url: uploadUrl,
+                    method: "PUT",
+                    body: chunk,
+                    headers: { "Content-Type": contentType },
+                    onProgress: (loaded) => {
+                      partProgressMap.set(partNumber, loaded);
+                      updateProgressUI();
+                    },
+                  });
+
+                  if (!uploadRes.ok) {
+                    throw new Error(`Part #${partNumber} returned status ${uploadRes.status}`);
+                  }
+
+                  const etag = uploadRes.responseText || `"${key}-${partNumber}"`;
+                  completedPartsMap.set(partNumber, etag);
+                  session!.completedParts = Array.from(completedPartsMap.entries()).map(([pNum, e]) => ({
+                    PartNumber: pNum,
+                    ETag: e,
+                  }));
+                  success = true;
+                  updateProgressUI();
+                } catch (err) {
+                  console.warn(`[multipart] Part #${partNumber} attempt ${attempts} failed:`, err);
+                  if (attempts >= 3) {
+                    throw new Error(`Network interruption on video part #${partNumber}. Click Resume when connection stabilizes.`);
+                  }
+                  await new Promise((r) => setTimeout(r, 1000 * attempts));
+                }
+              }
+            }
+          }
+
+          const workers = Array.from({ length: Math.min(CONCURRENCY, totalParts) }, () => worker());
+          await Promise.all(workers);
+
+          if (isCancelledRef.current) {
+            return;
+          }
+
+          if (isPausedRef.current) {
+            setUploadState("paused");
+            return;
+          }
+
+          // Complete S3 Multipart Upload
+          setUploadState("completing");
+          setProgressInfo((prev) => (prev ? { ...prev, step: "Finalizing video upload in database..." } : null));
+
+          const sortedParts = Array.from(completedPartsMap.entries())
+            .map(([PartNumber, ETag]) => ({ PartNumber, ETag }))
+            .sort((a, b) => a.PartNumber - b.PartNumber);
+
+          await api.completeClientMultipartUpload(id, {
+            key,
+            uploadId,
             fileName: file.name,
             contentType,
             sizeBytes: file.size,
-            kind,
+            kind: "video",
+            parts: sortedParts,
           });
+
+          activeSessionRef.current = null;
         } else {
-          // Direct API Upload fallback with REAL byte progress!
+          // ==========================================
+          // DIRECT S3 PRESIGNED PUT FOR IMAGES
+          // ==========================================
           setProgressInfo({
             fileIndex: i + 1,
             totalFiles,
@@ -191,43 +350,51 @@ function ClientWorkspace() {
             loaded: 0,
             total: file.size,
             percent: 0,
-            step: `Uploading ${kind} via API server...`,
+            step: "Uploading image to S3...",
           });
 
-          const formData = new FormData();
-          formData.append("file", file);
+          let uploadSuccess = false;
+          let s3Key = "";
 
-          const token = typeof window !== "undefined" ? localStorage.getItem("gk_token") : null;
-          const headers: Record<string, string> = {};
-          if (token) headers["Authorization"] = `Bearer ${token}`;
+          try {
+            const { key, uploadUrl } = await api.signClientMediaUpload(id, file.name, contentType, kind);
+            s3Key = key;
 
-          const uploadRes = await uploadWithProgress({
-            url: `${API_BASE}/api/clients/${id}/media/upload`,
-            method: "POST",
-            body: formData,
-            headers,
-            onProgress: (loaded, total, percent) => {
-              setProgressInfo({
-                fileIndex: i + 1,
-                totalFiles,
-                fileName: file.name,
-                loaded,
-                total,
-                percent,
-                step: `Uploading... ${percent}%`,
-              });
-            },
-          });
+            const uploadRes = await uploadWithProgress({
+              url: uploadUrl,
+              method: "PUT",
+              body: file,
+              headers: { "Content-Type": contentType },
+              onProgress: (loaded, total, percent) => {
+                setProgressInfo({
+                  fileIndex: i + 1,
+                  totalFiles,
+                  fileName: file.name,
+                  loaded,
+                  total,
+                  percent,
+                  step: `Uploading image... ${percent}%`,
+                });
+              },
+            });
 
-          if (!uploadRes.ok) {
-            let safeMsg = "Upload failed. Please check file size or network connection.";
-            try {
-              const resJson = JSON.parse(uploadRes.responseText);
-              if (resJson.error && typeof resJson.error === "string") safeMsg = resJson.error;
-            } catch {
-              // fallback
-            }
-            throw new Error(safeMsg);
+            if (uploadRes.ok) uploadSuccess = true;
+          } catch (s3Err) {
+            console.warn("[image upload] S3 presigned upload fallback to API backend upload:", s3Err);
+          }
+
+          if (uploadSuccess && s3Key) {
+            await api.confirmClientMediaUpload(id, {
+              key: s3Key,
+              fileName: file.name,
+              contentType,
+              sizeBytes: file.size,
+              kind,
+            });
+          } else {
+            const formData = new FormData();
+            formData.append("file", file);
+            await api.uploadClientMediaFile(id, formData);
           }
         }
 
@@ -488,30 +655,54 @@ function ClientWorkspace() {
                 })}
               </div>
 
-              {/* Upload Progress Bar & Status */}
-              {uploadState === "uploading" && progressInfo && (
-                <div className="space-y-2 pt-2 border-t border-border">
+              {/* Upload Progress Bar & Status (Uploading or Paused or Completing) */}
+              {(uploadState === "uploading" || uploadState === "paused" || uploadState === "completing") && progressInfo && (
+                <div className="space-y-3 pt-2 border-t border-border">
                   <div className="flex items-center justify-between text-xs font-medium text-foreground">
-                    <span className="truncate">{progressInfo.step}</span>
-                    <span className="font-mono text-brand shrink-0">{progressInfo.percent}%</span>
+                    <span className="truncate flex items-center gap-2">
+                      {uploadState === "paused" ? (
+                        <span className="chip text-[0.65rem] bg-amber-500/20 text-amber-500 uppercase font-semibold">Paused</span>
+                      ) : uploadState === "completing" ? (
+                        <span className="chip text-[0.65rem] bg-brand/20 text-brand uppercase font-semibold">Finalizing</span>
+                      ) : (
+                        <span className="chip text-[0.65rem] bg-brand/20 text-brand uppercase font-semibold">Uploading</span>
+                      )}
+                      <span>{progressInfo.step}</span>
+                    </span>
+                    <span className="font-mono text-brand shrink-0 text-sm font-bold">{progressInfo.percent}%</span>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface-2">
+
+                  <div className="h-3 w-full overflow-hidden rounded-full bg-surface-2 p-0.5 border border-border">
                     <div
-                      className="h-full rounded-full bg-brand transition-all duration-200"
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        uploadState === "paused" ? "bg-amber-500" : "bg-brand",
+                      )}
                       style={{ width: `${Math.min(100, Math.max(0, progressInfo.percent))}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[0.7rem] text-muted-foreground">
-                    <span>
-                      File {progressInfo.fileIndex} of {progressInfo.totalFiles}: {progressInfo.fileName}
-                    </span>
-                    <span>
-                      {formatBytes(progressInfo.loaded)} / {formatBytes(progressInfo.total)}
-                    </span>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[0.7rem] text-muted-foreground font-mono">
+                    <div>
+                      <span>Uploaded: </span>
+                      <span className="font-semibold text-foreground">
+                        {formatBytes(progressInfo.loaded)} / {formatBytes(progressInfo.total)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {progressInfo.speedBytesPerSec !== undefined && progressInfo.speedBytesPerSec > 0 && (
+                        <span>
+                          Speed: <strong className="text-foreground">{formatBytes(progressInfo.speedBytesPerSec)}/s</strong>
+                        </span>
+                      )}
+                      {progressInfo.remainingSeconds !== undefined && (
+                        <span>
+                          Est. Time: <strong className="text-foreground">~{progressInfo.remainingSeconds}s</strong>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-[0.7rem] text-brand/80 italic">
-                    Please keep this window open while media is being uploaded to S3.
-                  </p>
                 </div>
               )}
 
@@ -534,21 +725,73 @@ function ClientWorkspace() {
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Action Buttons: Start, Pause, Resume, Cancel */}
               <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={executeUpload}
-                  disabled={uploadState === "uploading"}
-                  className="btn-base btn-primary"
-                >
-                  <Upload className="size-4" />
-                  {uploadState === "uploading"
-                    ? "Uploading..."
-                    : uploadState === "error"
+                {uploadState === "uploading" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handlePause}
+                      className="btn-base btn-secondary !py-2 !px-4 text-xs flex items-center gap-1.5"
+                    >
+                      <Pause className="size-3.5" />
+                      Pause
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="btn-base btn-ghost text-destructive hover:bg-destructive/10 !py-2 !px-4 text-xs flex items-center gap-1.5"
+                    >
+                      <StopCircle className="size-3.5" />
+                      Cancel
+                    </button>
+                  </>
+                )}
+
+                {uploadState === "paused" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleResume}
+                      className="btn-base btn-brand !py-2 !px-4 text-xs flex items-center gap-1.5"
+                    >
+                      <Play className="size-3.5" />
+                      Resume Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="btn-base btn-ghost text-destructive hover:bg-destructive/10 !py-2 !px-4 text-xs flex items-center gap-1.5"
+                    >
+                      <StopCircle className="size-3.5" />
+                      Cancel
+                    </button>
+                  </>
+                )}
+
+                {(uploadState === "idle" || uploadState === "error" || uploadState === "success") && (
+                  <button
+                    type="button"
+                    onClick={executeUpload}
+                    className="btn-base btn-primary"
+                  >
+                    <Upload className="size-4" />
+                    {uploadState === "error"
                       ? "Retry Upload"
                       : `Start Upload (${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"})`}
-                </button>
+                  </button>
+                )}
+
+                {uploadState === "completing" && (
+                  <button
+                    type="button"
+                    disabled
+                    className="btn-base btn-primary opacity-60 cursor-not-allowed"
+                  >
+                    <RefreshCw className="size-4 animate-spin" />
+                    Finalizing Upload...
+                  </button>
+                )}
               </div>
             </div>
           )}

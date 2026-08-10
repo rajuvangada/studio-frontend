@@ -14,6 +14,7 @@ const links = [
   { to: "/services", label: "Services" },
   { to: "/about", label: "About" },
   { to: "/contact", label: "Contact" },
+  { to: "/client-login", label: "Client Login" },
 ] as const;
 
 export function SiteHeader() {

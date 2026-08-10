@@ -126,9 +126,21 @@ function ClientWorkspace() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const MAX_VIDEO_SIZE_BYTES = 1024 * 1024 * 1024 * 1024; // 1 TB in bytes
+
   function handleFileSelection(files: FileList | null) {
     if (!files || !files.length) return;
     const fileArray = Array.from(files);
+
+    for (const f of fileArray) {
+      const { kind } = getFileMediaDetails(f);
+      if (kind === "video" && f.size > MAX_VIDEO_SIZE_BYTES) {
+        toast.error("Video exceeds the maximum allowed size of 1 TB.");
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+    }
+
     setSelectedFiles(fileArray);
     setUploadState("idle");
     setProgressInfo(null);
@@ -206,7 +218,7 @@ function ClientWorkspace() {
               step: "Initiating S3 multipart upload...",
             });
 
-            const initRes = await api.initiateClientMultipartUpload(id, file.name, contentType, kind);
+            const initRes = await api.initiateClientMultipartUpload(id, file.name, contentType, kind, file.size);
             key = initRes.key;
             uploadId = initRes.uploadId;
             session = {
@@ -235,7 +247,7 @@ function ClientWorkspace() {
             }
 
             totalLoaded = Math.min(file.size, totalLoaded);
-            const percent = Math.round((totalLoaded / file.size) * 100);
+            const percent = Math.min(99, Math.round((totalLoaded / file.size) * 100));
             const elapsedSec = (Date.now() - startTime) / 1000;
             const speed = elapsedSec > 0.5 ? totalLoaded / elapsedSec : 0;
             const remainingSec = speed > 0 ? Math.round((file.size - totalLoaded) / speed) : undefined;
@@ -262,6 +274,7 @@ function ClientWorkspace() {
               const partNumber = nextPartIndex++;
               if (completedPartsMap.has(partNumber)) continue;
 
+              if (!file) break;
               const start = (partNumber - 1) * CHUNK_SIZE;
               const end = Math.min(file.size, start + CHUNK_SIZE);
               const chunk = file.slice(start, end);
@@ -289,7 +302,7 @@ function ClientWorkspace() {
                     throw new Error(`Part #${partNumber} returned status ${uploadRes.status}`);
                   }
 
-                  const etag = uploadRes.responseText || `"${key}-${partNumber}"`;
+                  const etag = uploadRes.etag || uploadRes.responseText || `"${key}-${partNumber}"`;
                   completedPartsMap.set(partNumber, etag);
                   session!.completedParts = Array.from(completedPartsMap.entries()).map(([pNum, e]) => ({
                     PartNumber: pNum,

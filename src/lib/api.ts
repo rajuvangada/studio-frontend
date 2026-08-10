@@ -207,7 +207,7 @@ export function uploadWithProgress(options: {
   body: Blob | FormData;
   headers?: Record<string, string>;
   onProgress?: (loaded: number, total: number, percentage: number) => void;
-}): Promise<{ ok: boolean; status: number; responseText: string }> {
+}): Promise<{ ok: boolean; status: number; responseText: string; etag: string | null }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open(options.method || "PUT", options.url, true);
@@ -228,10 +228,12 @@ export function uploadWithProgress(options: {
     }
 
     xhr.onload = () => {
+      const etag = xhr.getResponseHeader("ETag") || xhr.getResponseHeader("etag") || null;
       resolve({
         ok: xhr.status >= 200 && xhr.status < 300,
         status: xhr.status,
         responseText: xhr.responseText,
+        etag,
       });
     };
 
@@ -584,10 +586,16 @@ export const api = {
   },
 
   // S3 Multipart Upload for Large Videos
-  initiateClientMultipartUpload: (clientId: string, fileName: string, contentType: string, kind: string = "video") =>
+  initiateClientMultipartUpload: (
+    clientId: string,
+    fileName: string,
+    contentType: string,
+    kind: string = "video",
+    sizeBytes?: number,
+  ) =>
     apiFetch<{ uploadId: string; key: string }>(`/api/clients/${clientId}/media/multipart/initiate`, {
       method: "POST",
-      body: JSON.stringify({ fileName, contentType, kind }),
+      body: JSON.stringify({ fileName, contentType, kind, sizeBytes }),
     }),
 
   signClientMultipartPart: (clientId: string, key: string, uploadId: string, partNumber: number) =>

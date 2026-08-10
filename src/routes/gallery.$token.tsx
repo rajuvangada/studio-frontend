@@ -280,9 +280,22 @@ function GalleryPage() {
                   <button
                     type="button"
                     onClick={() => setLightboxIndex(i)}
-                    className="block w-full"
+                    className="block w-full text-left"
                   >
-                    <ImageWithSkeleton src={p.url} alt={p.file_name} />
+                    {p.kind === "video" ? (
+                      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+                        <video
+                          src={p.url}
+                          controls
+                          preload="metadata"
+                          playsInline
+                          className="h-full w-full object-cover"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    ) : (
+                      <ImageWithSkeleton src={p.url} alt={p.file_name} />
+                    )}
                   </button>
 
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -397,11 +410,21 @@ function GalleryPage() {
               className="relative max-h-[85vh] max-w-[90vw]"
               onClick={(e) => e.stopPropagation()}
             >
-              <img
-                src={activePhoto.url}
-                alt={activePhoto.file_name}
-                className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-[var(--shadow-lift)]"
-              />
+              {activePhoto.kind === "video" ? (
+                <video
+                  src={activePhoto.url}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain bg-black shadow-[var(--shadow-lift)]"
+                />
+              ) : (
+                <img
+                  src={activePhoto.url}
+                  alt={activePhoto.file_name}
+                  className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-[var(--shadow-lift)]"
+                />
+              )}
               <button
                 type="button"
                 onClick={() =>

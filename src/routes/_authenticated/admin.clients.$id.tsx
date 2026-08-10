@@ -825,8 +825,14 @@ function ClientWorkspace() {
                   className="group relative overflow-hidden rounded-xl border border-border bg-surface"
                 >
                   {m.kind === "video" ? (
-                    <div className="flex aspect-square w-full items-center justify-center bg-black/60 text-white">
-                      <Video className="size-8 text-brand" />
+                    <div className="relative aspect-square w-full bg-black overflow-hidden">
+                      <video
+                        src={m.url}
+                        controls
+                        preload="metadata"
+                        playsInline
+                        className="h-full w-full object-cover"
+                      />
                     </div>
                   ) : (
                     <img

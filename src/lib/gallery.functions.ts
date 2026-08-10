@@ -9,6 +9,7 @@ const credentials = z.object({
 
 export type GalleryPhoto = {
   id: string;
+  kind?: string;
   file_name: string;
   url: string;
   selected: boolean;

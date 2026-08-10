@@ -131,7 +131,7 @@ function ClientLoginPage() {
                   Client Gallery Sign In
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Enter your gallery link or access code below.
+                  Enter your gallery link below.
                 </p>
               </div>
 
@@ -139,7 +139,7 @@ function ClientLoginPage() {
               <form onSubmit={handleSubmit} className="mt-8 space-y-5">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="tokenInput">
-                    Gallery Code or Link
+                    Gallery  Link
                   </label>
                   <div className="relative flex items-center">
                     <Lock className="absolute left-3.5 size-4 text-muted-foreground pointer-events-none" />
@@ -149,7 +149,7 @@ function ClientLoginPage() {
                       required
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
-                      placeholder="e.g. paste your gallery link"
+                      placeholder="paste your gallery link"
                       className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 transition-all focus:border-foreground focus:outline-none"
                     />
                   </div>

@@ -1040,6 +1040,15 @@ function ClientWorkspace() {
                         ))}
                       </div>
                     )}
+
+                    {s.notes && s.notes.trim() && (
+                      <div className="mt-4 rounded-xl border border-border/80 bg-surface-2/50 p-4">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                          Client message
+                        </p>
+                        <p className="mt-1 text-sm text-foreground">{s.notes}</p>
+                      </div>
+                    )}
                   </article>
                 );
               })

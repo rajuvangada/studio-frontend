@@ -956,9 +956,7 @@ function ClientWorkspace() {
 
       {/* Tab 4: Submissions */}
       {tab === "Submissions" && (() => {
-        const selectedMediaItems = data.media.filter((m: MediaItem) => m.selected);
-        const selectedPhotoCount = data.media.filter((m: MediaItem) => m.selected && m.kind !== "video").length;
-        const selectedVideoCount = data.media.filter((m: MediaItem) => m.selected && m.kind === "video").length;
+        const globalSelectedMedia = data.media.filter((m: MediaItem) => m.selected);
 
         return (
           <section className="mt-6 space-y-4">
@@ -972,13 +970,17 @@ function ClientWorkspace() {
               </div>
             ) : (
               data.submissions.map((s) => {
+                const subMedia = Array.isArray(s.media) && s.media.length > 0 ? s.media : globalSelectedMedia;
+                const photoCount = subMedia.filter((m: MediaItem) => m.kind !== "video").length;
+                const videoCount = subMedia.filter((m: MediaItem) => m.kind === "video").length;
+
                 let summaryText = "";
-                if (selectedPhotoCount > 0 && selectedVideoCount > 0) {
-                  summaryText = `${selectedPhotoCount} photo${selectedPhotoCount === 1 ? "" : "s"} + ${selectedVideoCount} video${selectedVideoCount === 1 ? "" : "s"} selected by client`;
-                } else if (selectedVideoCount > 0) {
-                  summaryText = `${selectedVideoCount} video${selectedVideoCount === 1 ? "" : "s"} selected by client`;
+                if (photoCount > 0 && videoCount > 0) {
+                  summaryText = `${photoCount} photo${photoCount === 1 ? "" : "s"} + ${videoCount} video${videoCount === 1 ? "" : "s"} selected by client`;
+                } else if (videoCount > 0) {
+                  summaryText = `${videoCount} video${videoCount === 1 ? "" : "s"} selected by client`;
                 } else {
-                  const count = selectedPhotoCount || s.photoCount || 0;
+                  const count = photoCount || s.photoCount || 0;
                   summaryText = `${count} photo${count === 1 ? "" : "s"} selected by client`;
                 }
 
@@ -1000,12 +1002,12 @@ function ClientWorkspace() {
                       )}
                     </div>
 
-                    {selectedMediaItems.length > 0 && (
+                    {subMedia.length > 0 && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                        {selectedMediaItems.map((m: MediaItem, idx: number) => (
+                        {subMedia.map((m: MediaItem, idx: number) => (
                           <div
                             key={m.id || m._id}
-                            onClick={() => openPreview(selectedMediaItems, idx)}
+                            onClick={() => openPreview(subMedia, idx)}
                             className="group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-surface hover:border-brand transition-colors"
                             title="Click for large preview"
                           >
@@ -1036,15 +1038,6 @@ function ClientWorkspace() {
                             </p>
                           </div>
                         ))}
-                      </div>
-                    )}
-
-                    {s.notes && s.notes.trim() && (
-                      <div className="mt-4 rounded-xl border border-border/80 bg-surface-2/50 p-4">
-                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                          Note from client
-                        </p>
-                        <p className="mt-1 text-sm text-foreground">{s.notes}</p>
                       </div>
                     )}
                   </article>

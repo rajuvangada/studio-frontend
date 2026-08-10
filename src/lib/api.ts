@@ -120,6 +120,7 @@ export type SubmissionItem = {
   submitted_at?: string | null;
   reviewedAt?: string | null;
   reviewed_at?: string | null;
+  media?: MediaItem[];
 };
 
 export type ActivityEventItem = {

@@ -25,6 +25,23 @@ export function formatDate(value?: string | null) {
   });
 }
 
+export function formatBusinessActivityDescription(raw?: string): string {
+  if (!raw) return "Studio activity recorded";
+  let desc = raw.trim();
+
+  // Strip technical jargon like "via S3 multipart (242 parts)", "via S3", etc.
+  desc = desc.replace(/\s*via\s+S3\s+multipart\s*\(\d+\s*parts\)/gi, "");
+  desc = desc.replace(/\s*via\s+S3\s+multipart/gi, "");
+  desc = desc.replace(/\s*via\s+S3/gi, "");
+  desc = desc.replace(/\s*via\s+presigned\s+PUT/gi, "");
+  desc = desc.replace(/media_uploaded/gi, "Media uploaded");
+  desc = desc.replace(/client_created/gi, "New client created");
+  desc = desc.replace(/selection_submitted/gi, "Client submitted photo selection");
+
+  desc = desc.trim();
+  return desc || "Studio activity recorded";
+}
+
 export type StudioProfile = {
   id: string;
   studio_name: string;

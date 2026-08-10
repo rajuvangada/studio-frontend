@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, Images, MessageSquare, Sparkles, Users } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/studio";
+import { formatDate, formatBusinessActivityDescription } from "@/lib/studio";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   component: AdminOverview,
@@ -110,7 +110,7 @@ function AdminOverview() {
           <ul className="mt-4 divide-y divide-border">
             {data?.activity.map((a) => (
               <li key={a.id || a._id} className="flex items-start justify-between gap-6 py-3 text-sm">
-                <span className="text-foreground">{a.description || a.type || a.event_type}</span>
+                <span className="text-foreground">{formatBusinessActivityDescription(a.description || a.type || a.event_type)}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {formatDate(a.createdAt || a.created_at)}
                 </span>

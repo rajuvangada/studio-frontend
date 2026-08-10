@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { API_BASE, api, formatBytes, getFileMediaDetails, uploadWithProgress, type MediaItem } from "@/lib/api";
-import { formatDate, whatsappHref } from "@/lib/studio";
+import { formatDate, formatBusinessActivityDescription, whatsappHref } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/clients/$id")({
@@ -1025,7 +1025,7 @@ function ClientWorkspace() {
                 <li key={e.id || e._id} className="flex items-start gap-3 text-sm">
                   <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" />
                   <div className="flex-1">
-                    <p className="text-foreground">{e.description || e.type || e.event_type}</p>
+                    <p className="text-foreground">{formatBusinessActivityDescription(e.description || e.type || e.event_type)}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(e.createdAt || e.created_at)}</p>
                   </div>
                 </li>
